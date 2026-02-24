@@ -8,12 +8,12 @@ package sulibagakent.Screens;
  *
  * @author USER
  */
-public class Reports extends javax.swing.JPanel {
+public class POSController extends javax.swing.JPanel {
 
     /**
-     * Creates new form Reports
+     * Creates new form POSController
      */
-    public Reports() {
+    public POSController() {
         initComponents();
     }
 

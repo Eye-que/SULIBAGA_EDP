@@ -9,7 +9,7 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.JOptionPane;
 
 public class ProductScreen extends javax.swing.JFrame {
-
+    
     private ProductsManagement products;
     private int selectedRow = -1;
 
@@ -153,7 +153,7 @@ public class ProductScreen extends javax.swing.JFrame {
         jSeparator9 = new javax.swing.JSeparator();
         jSeparator1 = new javax.swing.JSeparator();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setPreferredSize(new java.awt.Dimension(700, 700));
         getContentPane().setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
@@ -299,16 +299,18 @@ public class ProductScreen extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnBackActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnBackActionPerformed
-
-    int confirm = JOptionPane.showConfirmDialog(null, "Are you sure you want to exit?", "exit",JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+   int confirm = JOptionPane.showConfirmDialog(
+        this,
+        "Are you sure you want to exit?",
+        "Exit",
+        JOptionPane.YES_NO_OPTION,
+        JOptionPane.WARNING_MESSAGE
+    );
 
     if (confirm == JOptionPane.YES_OPTION) {
-        ProductsManagement pr = new ProductsManagement();
-        pr.show();
-        this.dispose();// return to dashboard
-    
+        this.dispose(); // ✅ just close the popup
+        // main ProductsManagement panel is already behind it
     }
-
     }//GEN-LAST:event_btnBackActionPerformed
 
     private void btnClearActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnClearActionPerformed
@@ -420,11 +422,10 @@ public class ProductScreen extends javax.swing.JFrame {
             );
 
             JOptionPane.showMessageDialog(this, "Product updated in database!");
-            if (products != null) {
-                products.refreshProducts();
-                products.setVisible(true);
-            }
-            this.dispose();
+        if (products != null) {
+        products.refreshProducts();
+        }
+        this.dispose();
 
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Cost/Selling must be decimal. Quantity/Reorder must be whole number.");
@@ -440,36 +441,6 @@ public class ProductScreen extends javax.swing.JFrame {
     /**
      * @param args the command line arguments
      */
-  public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-         */
-        try {
-            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                }
-            }
-        } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        }
-        //</editor-fold>
-
-        /* Create and display the form */
-        java.awt.EventQueue.invokeLater(() -> {
-        ProductsManagement pro = new ProductsManagement(); // example
-        new ProductScreen(pro).setVisible(true);
-    });
-}
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnAddProduct;

@@ -17,11 +17,14 @@ public class ProductStockingFrame extends javax.swing.JFrame {
     /**
      * Creates new form ProductStockingFrame
      */
-    private InventoryManagement inventory;
-    
-    public ProductStockingFrame(Dashboard dashboard) {
+private InventoryManagement inventory;
+
+public ProductStockingFrame(InventoryManagement inventory) {
     this.inventory = inventory;
     initComponents();
+    setLocationRelativeTo(null);
+
+    // safer: closing this window should not exit the whole app
 }
     private void clearFields() {
 
@@ -115,7 +118,7 @@ public class ProductStockingFrame extends javax.swing.JFrame {
         jSeparator3 = new javax.swing.JSeparator();
         jSeparator6 = new javax.swing.JSeparator();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         getContentPane().setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         jLabel1.setFont(new java.awt.Font("Times New Roman", 1, 18)); // NOI18N
@@ -281,13 +284,17 @@ public class ProductStockingFrame extends javax.swing.JFrame {
     }//GEN-LAST:event_cmbCategoryActionPerformed
 
     private void btnExitActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnExitActionPerformed
-     int confirm = JOptionPane.showConfirmDialog(null, "Are you sure you want to exit?", "exit",
-     JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE); if (confirm == JOptionPane.YES_OPTION) 
-     { InventoryManagement inv = new InventoryManagement(); 
-     inv.setVisible(true); this.dispose(); }
-    
-    
-    
+ int confirm = JOptionPane.showConfirmDialog(
+        this,
+        "Are you sure you want to exit?",
+        "Exit",
+        JOptionPane.YES_NO_OPTION,
+        JOptionPane.WARNING_MESSAGE
+    );
+
+    if (confirm == JOptionPane.YES_OPTION) {
+        this.dispose(); // ✅ just close popup
+    }
     }//GEN-LAST:event_btnExitActionPerformed
 
     private void txtProductNameActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtProductNameActionPerformed
@@ -355,54 +362,15 @@ public class ProductStockingFrame extends javax.swing.JFrame {
         // this happens if Date.valueOf("...") is not YYYY-MM-DD
         JOptionPane.showMessageDialog(this, "Date format must be YYYY-MM-DD");
     }
-    JOptionPane.showMessageDialog(this, "Stock entry saved!");
+JOptionPane.showMessageDialog(this, "Stock entry saved!");
 
-// refresh inventory
 if (inventory != null) {
     inventory.refreshTables();
 }
 
-// clear everything
 clearFields();
-
-
     }//GEN-LAST:event_btnSaveActionPerformed
 
-    /**
-     * @param args the command line arguments
-     */
- public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-         */
-        try {
-            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                }
-            }
-        } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(ProductScreen.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        }
-        //</editor-fold>
-
-        /* Create and display the form */
-         java.awt.EventQueue.invokeLater(() -> {
-        Dashboard dash = new Dashboard();
-        ProductStockingFrame psf = new ProductStockingFrame(dash);
-        psf.setVisible(true);
-        
-    });
-}
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnClear;
