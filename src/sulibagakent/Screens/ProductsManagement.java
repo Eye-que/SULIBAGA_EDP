@@ -1,13 +1,15 @@
 package sulibagakent.Screens;
 
+import sulibagakent.Screens.Gradients.PanelGradient;
 import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
 import DbConnection.ProductDAO;
-import java.awt.Window;
 import java.sql.SQLException;
 import java.util.List;
-import javax.swing.SwingUtilities;
-
+import DbConnection.DBConnection;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 public final class ProductsManagement extends PanelGradient{
     private Dashboard dashboard;
     public ProductsManagement(Dashboard dashboard) {
@@ -16,20 +18,53 @@ public final class ProductsManagement extends PanelGradient{
     refreshProducts();
 }
 
-    public void refreshProducts() {
+public void refreshProducts() {
     try {
         DefaultTableModel model = (DefaultTableModel) tblProducts.getModel();
         model.setRowCount(0);
 
         List<Object[]> rows = ProductDAO.fetchAll();
         for (Object[] r : rows) {
-            model.addRow(r); // ✅ expects 12 values
+            model.addRow(r);
         }
+
+        refreshStats(); // ✅ update the cards too
 
     } catch (SQLException e) {
         JOptionPane.showMessageDialog(this, "Load products failed: " + e.getMessage());
     }
 }
+private void refreshStats() {
+
+    String sqlTotal    = "SELECT COUNT(*) FROM products";
+    String sqlLowStock = "SELECT COUNT(*) FROM products WHERE stock_quantity <= reorder_level AND stock_quantity > 0";
+    String sqlOutStock = "SELECT COUNT(*) FROM products WHERE stock_quantity = 0";
+    String sqlActive   = "SELECT COUNT(*) FROM products WHERE stock_quantity > 0";
+
+    try (Connection con = DBConnection.getConnection()) {
+
+        lblTotalProducts.setText(String.valueOf(getCount(con, sqlTotal)));     // Total Products
+        lblLowStock.setText(String.valueOf(getCount(con, sqlLowStock))); // Low Stock
+        lblOutOfStock.setText(String.valueOf(getCount(con, sqlOutStock))); // Out of Stock
+        lblActiveProducts.setText(String.valueOf(getCount(con, sqlActive)));   // Active Products
+
+    } catch (Exception e) {
+        lblTotalProducts.setText("0");
+        lblLowStock.setText("0");
+        lblOutOfStock.setText("0");
+        lblActiveProducts.setText("0");
+
+        JOptionPane.showMessageDialog(this, "Stats load failed: " + e.getMessage());
+    }
+}
+
+private int getCount(Connection con, String sql) throws Exception {
+    try (PreparedStatement ps = con.prepareStatement(sql);
+         ResultSet rs = ps.executeQuery()) {
+        return rs.next() ? rs.getInt(1) : 0;
+    }
+}
+    
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
@@ -43,18 +78,22 @@ public final class ProductsManagement extends PanelGradient{
         jPanel1 = new javax.swing.JPanel();
         jLabel9 = new javax.swing.JLabel();
         jLabel13 = new javax.swing.JLabel();
+        lblTotalProducts = new javax.swing.JLabel();
         btnAdd = new javax.swing.JButton();
         btnUpdate = new javax.swing.JButton();
         btnDelete = new javax.swing.JButton();
         jPanel2 = new javax.swing.JPanel();
         jLabel10 = new javax.swing.JLabel();
         jLabel14 = new javax.swing.JLabel();
+        lblLowStock = new javax.swing.JLabel();
         jPanel3 = new javax.swing.JPanel();
         jLabel11 = new javax.swing.JLabel();
         jLabel15 = new javax.swing.JLabel();
+        lblOutOfStock = new javax.swing.JLabel();
         jPanel4 = new javax.swing.JPanel();
         jLabel12 = new javax.swing.JLabel();
         jLabel16 = new javax.swing.JLabel();
+        lblActiveProducts = new javax.swing.JLabel();
         jLabel4 = new javax.swing.JLabel();
         jLabel3 = new javax.swing.JLabel();
         jComboBox2 = new javax.swing.JComboBox<>();
@@ -77,15 +116,23 @@ public final class ProductsManagement extends PanelGradient{
 
         tblProducts.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null}
+                {null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null}
             },
             new String [] {
-                "Barcode", "Product ID", "Name", "Category", "Description", "Cost Price", "Selling Price", "Quantity Stock", "Reoder lvl", "Supplier", "Units", "Status"
+                "Barcode", "Product ID", "Name", "Category", "Description", "Cost Price", "Selling Price", "Quantity Stock", "Reoder lvl", "Supplier"
             }
-        ));
+        ) {
+            boolean[] canEdit = new boolean [] {
+                false, false, false, false, false, false, false, false, false, false
+            };
+
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit [columnIndex];
+            }
+        });
         tblProducts.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent evt) {
                 tblProductsMouseClicked(evt);
@@ -93,7 +140,7 @@ public final class ProductsManagement extends PanelGradient{
         });
         jScrollPane1.setViewportView(tblProducts);
 
-        add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 200, 1140, 420));
+        add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 200, 1480, 420));
         add(jTextField1, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 160, 150, 30));
 
         jLabel2.setText("Search: ");
@@ -115,6 +162,9 @@ public final class ProductsManagement extends PanelGradient{
         jLabel13.setFont(new java.awt.Font("Segoe UI", 0, 18)); // NOI18N
         jLabel13.setText("Total Products");
         jPanel1.add(jLabel13, new org.netbeans.lib.awtextra.AbsoluteConstraints(60, 10, -1, -1));
+
+        lblTotalProducts.setText("{}");
+        jPanel1.add(lblTotalProducts, new org.netbeans.lib.awtextra.AbsoluteConstraints(90, 40, -1, -1));
 
         add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 80, 200, 70));
 
@@ -143,6 +193,9 @@ public final class ProductsManagement extends PanelGradient{
         jLabel14.setText("Low Stock");
         jPanel2.add(jLabel14, new org.netbeans.lib.awtextra.AbsoluteConstraints(60, 10, -1, -1));
 
+        lblLowStock.setText("{}");
+        jPanel2.add(lblLowStock, new org.netbeans.lib.awtextra.AbsoluteConstraints(90, 40, -1, -1));
+
         add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 80, 200, 70));
 
         jPanel3.setBackground(new java.awt.Color(255, 255, 255));
@@ -156,6 +209,9 @@ public final class ProductsManagement extends PanelGradient{
         jLabel15.setText("Out of Stock");
         jPanel3.add(jLabel15, new org.netbeans.lib.awtextra.AbsoluteConstraints(70, 10, -1, -1));
 
+        lblOutOfStock.setText("{}");
+        jPanel3.add(lblOutOfStock, new org.netbeans.lib.awtextra.AbsoluteConstraints(110, 40, -1, -1));
+
         add(jPanel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(490, 80, 200, 70));
 
         jPanel4.setBackground(new java.awt.Color(255, 255, 255));
@@ -168,6 +224,9 @@ public final class ProductsManagement extends PanelGradient{
         jLabel16.setFont(new java.awt.Font("Segoe UI", 0, 18)); // NOI18N
         jLabel16.setText("Active Products");
         jPanel4.add(jLabel16, new org.netbeans.lib.awtextra.AbsoluteConstraints(70, 10, -1, -1));
+
+        lblActiveProducts.setText("{}");
+        jPanel4.add(lblActiveProducts, new org.netbeans.lib.awtextra.AbsoluteConstraints(120, 40, -1, -1));
 
         add(jPanel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(710, 80, 220, 70));
 
@@ -215,7 +274,6 @@ public final class ProductsManagement extends PanelGradient{
         int row = tblProducts.convertRowIndexToModel(viewRow);
 
         String barcode      = tblProducts.getModel().getValueAt(row, 0).toString();
-        String productID    = tblProducts.getModel().getValueAt(row, 1).toString();
         String productName  = tblProducts.getModel().getValueAt(row, 2).toString();
         String category     = tblProducts.getModel().getValueAt(row, 3).toString();
         String description  = tblProducts.getModel().getValueAt(row, 4).toString();
@@ -224,14 +282,11 @@ public final class ProductsManagement extends PanelGradient{
         String quantity     = tblProducts.getModel().getValueAt(row, 7).toString();
         String reorderLevel = tblProducts.getModel().getValueAt(row, 8).toString();
         String supplier     = tblProducts.getModel().getValueAt(row, 9).toString();
-        String unit         = tblProducts.getModel().getValueAt(row, 10).toString();
-        String status       = tblProducts.getModel().getValueAt(row, 11).toString();
 
         ProductScreen ps = new ProductScreen(
             this,
             row,
             barcode,
-            productID,
             productName,
             category,
             description,
@@ -239,9 +294,8 @@ public final class ProductsManagement extends PanelGradient{
             sellingPrice,
             quantity,
             reorderLevel,
-            supplier,
-            unit,
-            status
+            supplier
+
         );
 
         ps.setVisible(true);
@@ -277,6 +331,10 @@ public final class ProductsManagement extends PanelGradient{
     private javax.swing.JPanel jPanel4;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTextField jTextField1;
+    private javax.swing.JLabel lblActiveProducts;
+    private javax.swing.JLabel lblLowStock;
+    private javax.swing.JLabel lblOutOfStock;
+    private javax.swing.JLabel lblTotalProducts;
     private javax.swing.JTable tblProducts;
     // End of variables declaration//GEN-END:variables
 }

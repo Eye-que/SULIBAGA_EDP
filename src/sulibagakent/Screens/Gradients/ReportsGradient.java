@@ -2,7 +2,7 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/GUIForms/JPanel.java to edit this template
  */
-package sulibagakent.Screens;
+package sulibagakent.Screens.Gradients;
 
 import java.awt.Color;
 import java.awt.GradientPaint;
@@ -14,11 +14,11 @@ import java.awt.RenderingHints;
  *
  * @author USER
  */
-public class PanelGradient extends javax.swing.JPanel {
+public class ReportsGradient extends javax.swing.JPanel {
 private final Color top = new Color(247, 252, 250);     // rgb(247,252,250)
     private final Color bottom = new Color(228, 244, 239);  // rgb(228,244,239)
 
-    public PanelGradient() {
+    public ReportsGradient() {
         setOpaque(false);
     }
 

@@ -13,105 +13,136 @@ public class ProductDAO {
         return DriverManager.getConnection(url, user, pass);
     }
 
-    // ✅ INSERT (matches your table columns)
-    public static void insertProduct(
+    // ============================
+    // INSERT PRODUCT
+    // ============================
+    public static boolean insertProduct(
             String barcode,
-            String productID,
-            String productName,
-            String category,
+            String name,
+            int categoryId,
+            int supplierId,
             String description,
             double costPrice,
             double sellingPrice,
             int stockQty,
             int reorderLevel,
-            String supplierName,
-            String unitMeasure,
-            String status
+            String productImageBase64 // can be null
     ) throws SQLException {
 
         String sql = """
             INSERT INTO products
-            (barcode, product_id, product_name, category, description,
-             cost_price, unit_price, stock_quantity, reorder_level,
-             supplier_name, unit_of_measure, status)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            (barcode, name, category_id, supplier_id, description,
+             cost_price, selling_price, stock_quantity, reorder_level, product_image)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
         """;
 
-        try (Connection con = getConn(); PreparedStatement ps = con.prepareStatement(sql)) {
+        try (Connection con = getConn();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
             ps.setString(1, barcode);
-            ps.setString(2, productID);
-            ps.setString(3, productName);
-            ps.setString(4, category);
+            ps.setString(2, name);
+            ps.setInt(3, categoryId);
+            ps.setInt(4, supplierId);
             ps.setString(5, description);
             ps.setDouble(6, costPrice);
             ps.setDouble(7, sellingPrice);
             ps.setInt(8, stockQty);
             ps.setInt(9, reorderLevel);
-            ps.setString(10, supplierName);
-            ps.setString(11, unitMeasure);
-            ps.setString(12, status);
-            ps.executeUpdate();
+            ps.setString(10, productImageBase64);
+
+            return ps.executeUpdate() > 0;
         }
     }
 
-    // ✅ UPDATE (matches your table columns)
-    public static void updateProduct(
+    // ============================
+    // UPDATE PRODUCT (BY product_id)
+    // ============================
+    public static boolean updateProduct(
+            int productId,
             String barcode,
-            String productID,
-            String productName,
-            String category,
+            String name,
+            int categoryId,
+            int supplierId,
             String description,
             double costPrice,
             double sellingPrice,
             int stockQty,
             int reorderLevel,
-            String supplierName,
-            String unitMeasure,
-            String status
+            String productImageBase64 // can be null
     ) throws SQLException {
 
         String sql = """
             UPDATE products SET
               barcode=?,
-              product_name=?,
-              category=?,
+              name=?,
+              category_id=?,
+              supplier_id=?,
               description=?,
               cost_price=?,
-              unit_price=?,
+              selling_price=?,
               stock_quantity=?,
               reorder_level=?,
-              supplier_name=?,
-              unit_of_measure=?,
-              status=?
+              product_image=?
             WHERE product_id=?
         """;
 
-        try (Connection con = getConn(); PreparedStatement ps = con.prepareStatement(sql)) {
+        try (Connection con = getConn();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
             ps.setString(1, barcode);
-            ps.setString(2, productName);
-            ps.setString(3, category);
-            ps.setString(4, description);
-            ps.setDouble(5, costPrice);
-            ps.setDouble(6, sellingPrice);
-            ps.setInt(7, stockQty);
-            ps.setInt(8, reorderLevel);
-            ps.setString(9, supplierName);
-            ps.setString(10, unitMeasure);
-            ps.setString(11, status);
-            ps.setString(12, productID);
-            ps.executeUpdate();
+            ps.setString(2, name);
+            ps.setInt(3, categoryId);
+            ps.setInt(4, supplierId);
+            ps.setString(5, description);
+            ps.setDouble(6, costPrice);
+            ps.setDouble(7, sellingPrice);
+            ps.setInt(8, stockQty);
+            ps.setInt(9, reorderLevel);
+            ps.setString(10, productImageBase64);
+            ps.setInt(11, productId);
+
+            return ps.executeUpdate() > 0;
         }
     }
 
-    // ✅ FETCH ALL (order matches your JTable: Barcode, Product ID, Name, Category, ...)
+    // ============================
+    // DELETE PRODUCT (BY product_id)
+    // ============================
+    public static boolean deleteProduct(int productId) throws SQLException {
+        String sql = "DELETE FROM products WHERE product_id=?";
+
+        try (Connection con = getConn();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, productId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    // ============================
+    // FETCH ALL PRODUCTS (FOR JTable)
+    // Returns:
+    // product_id, barcode, name, category_name, supplier_name,
+    // description, cost_price, selling_price, stock_quantity, reorder_level
+    // ============================
     public static List<Object[]> fetchAll() throws SQLException {
 
         String sql = """
-            SELECT barcode, product_id, product_name, category, description,
-                   cost_price, unit_price, stock_quantity, reorder_level,
-                   supplier_name, unit_of_measure, status
-            FROM products
-            ORDER BY date_added DESC
+            SELECT
+              p.product_id,
+              p.barcode,
+              p.name,
+              c.name AS category_name,
+              s.name AS supplier_name,
+              p.description,
+              p.cost_price,
+              p.selling_price,
+              p.stock_quantity,
+              p.reorder_level
+            FROM products p
+            JOIN categories c ON p.category_id = c.category_id
+            JOIN suppliers s ON p.supplier_id = s.supplier_id
+            ORDER BY p.product_id DESC
         """;
 
         List<Object[]> rows = new ArrayList<>();
@@ -121,11 +152,65 @@ public class ProductDAO {
              ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
-                Object[] r = new Object[12];
-                for (int i = 0; i < 12; i++) r[i] = rs.getObject(i + 1);
-                rows.add(r);
+                rows.add(new Object[]{
+                        rs.getInt("product_id"),
+                        rs.getString("barcode"),
+                        rs.getString("name"),
+                        rs.getString("category_name"),
+                        rs.getString("supplier_name"),
+                        rs.getString("description"),
+                        rs.getDouble("cost_price"),
+                        rs.getDouble("selling_price"),
+                        rs.getInt("stock_quantity"),
+                        rs.getInt("reorder_level")
+                });
             }
         }
+
         return rows;
+    }
+
+    // ============================
+    // FETCH CATEGORY LIST (FOR COMBOBOX)
+    // returns: [id, name]
+    // ============================
+    public static List<Object[]> fetchCategories() throws SQLException {
+        String sql = "SELECT category_id, name FROM categories ORDER BY name";
+        List<Object[]> list = new ArrayList<>();
+
+        try (Connection con = getConn();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                list.add(new Object[]{
+                        rs.getInt("category_id"),
+                        rs.getString("name")
+                });
+            }
+        }
+        return list;
+    }
+
+    // ============================
+    // FETCH SUPPLIER LIST (FOR COMBOBOX)
+    // returns: [id, name]
+    // ============================
+    public static List<Object[]> fetchSuppliers() throws SQLException {
+        String sql = "SELECT supplier_id, name FROM suppliers ORDER BY name";
+        List<Object[]> list = new ArrayList<>();
+
+        try (Connection con = getConn();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                list.add(new Object[]{
+                        rs.getInt("supplier_id"),
+                        rs.getString("name")
+                });
+            }
+        }
+        return list;
     }
 }

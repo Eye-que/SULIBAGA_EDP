@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package DbConnection;
 
 import java.sql.*;
@@ -10,72 +6,148 @@ import java.util.List;
 
 public class StockDAO {
 
-    // EDIT THIS: use your own connection method if you already have one
     private static Connection getConn() throws SQLException {
-        // Example (change db, user, pass)
         String url = "jdbc:mysql://localhost:3307/pos_db?useSSL=false&serverTimezone=UTC";
         String user = "root";
         String pass = "";
         return DriverManager.getConnection(url, user, pass);
     }
 
-    public static void addStockEntry(
-            String barcode, String productId, String productName, String category, String supplierName,
-            String batchNo, String mfgDate, String expDate, int qtyAdded, double unitCost, double sellingPrice,
-            String storageLoc, String stockStatus,
-            String dateStocked, String stockedBy, String remarks
-    ) throws SQLException {
+    // ============================
+    // STOCK IN (adds to product stock + logs transaction)
+    // ============================
+    public static boolean stockIn(int productId, int qty, String referenceNo, String remarks) throws SQLException {
+        if (qty <= 0) throw new SQLException("Quantity must be greater than 0.");
 
-        String sql = """
-    INSERT INTO inventory
-    (barcode, product_id, product_name, category, supplier_name,
-     batch_no, manufacturing_date, expiration_date, qty, unit_cost, selling_price,
-     storage_location, stock_status,
-     date_stocked, stocked_by, remarks)
-    VALUES (?,?,?,?,?,
-            ?,?,?,?,?,?,
-            ?,?,
-            ?,?,?)
-""";
+        String insertTx = """
+            INSERT INTO inventory_transactions
+            (product_id, transaction_type, quantity, reference_number, reason)
+            VALUES (?, 'Stock In', ?, ?, ?)
+        """;
 
-        try (Connection con = getConn();
-             PreparedStatement ps = con.prepareStatement(sql)) {
+        String updateStock = """
+            UPDATE products
+            SET stock_quantity = stock_quantity + ?
+            WHERE product_id = ?
+        """;
 
-            ps.setString(1, barcode);
-            ps.setString(2, productId);
-            ps.setString(3, productName);
-            ps.setString(4, category);
-            ps.setString(5, supplierName);
+        try (Connection con = getConn()) {
+            con.setAutoCommit(false);
 
-            ps.setString(6, batchNo);
-            ps.setDate(7, Date.valueOf(mfgDate));       // "YYYY-MM-DD"
-            ps.setDate(8, Date.valueOf(expDate));       // "YYYY-MM-DD"
-            ps.setInt(9, qtyAdded);
-            ps.setDouble(10, unitCost);
-            ps.setDouble(11, sellingPrice);
+            try (PreparedStatement ps1 = con.prepareStatement(insertTx);
+                 PreparedStatement ps2 = con.prepareStatement(updateStock)) {
 
-            ps.setString(12, storageLoc);
-            ps.setString(13, stockStatus);
+                // log transaction
+                ps1.setInt(1, productId);
+                ps1.setInt(2, qty);
+                ps1.setString(3, referenceNo);
+                ps1.setString(4, remarks);
+                ps1.executeUpdate();
 
-            ps.setDate(14, Date.valueOf(dateStocked));  // "YYYY-MM-DD"
-            ps.setString(15, stockedBy);
-            ps.setString(16, remarks);
+                // update stock
+                ps2.setInt(1, qty);
+                ps2.setInt(2, productId);
+                int affected = ps2.executeUpdate();
 
-            ps.executeUpdate();
+                if (affected == 0) throw new SQLException("Product not found.");
+
+                con.commit();
+                return true;
+
+            } catch (SQLException e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
+            }
         }
     }
 
-    // One query, used to fill ALL 3 tables
-    public static List<Object[]> fetchAllRows() throws SQLException {
-String sql = """
-    SELECT barcode, product_id, product_name, category, supplier_name,
-           batch_no, manufacturing_date, expiration_date, qty, unit_cost, selling_price,
-           storage_location, stock_status,
-           date_stocked, stocked_by, remarks
-    FROM inventory
-    ORDER BY id DESC
-""";
+    // ============================
+    // STOCK OUT (deducts product stock + logs transaction)
+    // ============================
+    public static boolean stockOut(int productId, int qty, String referenceNo, String reason) throws SQLException {
+        if (qty <= 0) throw new SQLException("Quantity must be greater than 0.");
 
+        String checkStock = "SELECT stock_quantity FROM products WHERE product_id = ?";
+        String insertTx = """
+            INSERT INTO inventory_transactions
+            (product_id, transaction_type, quantity, reference_number, reason)
+            VALUES (?, 'Stock Out', ?, ?, ?)
+        """;
+        String updateStock = """
+            UPDATE products
+            SET stock_quantity = stock_quantity - ?
+            WHERE product_id = ?
+        """;
+
+        try (Connection con = getConn()) {
+            con.setAutoCommit(false);
+
+            try {
+                // check current stock
+                int currentStock = 0;
+                try (PreparedStatement ps = con.prepareStatement(checkStock)) {
+                    ps.setInt(1, productId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) throw new SQLException("Product not found.");
+                        currentStock = rs.getInt("stock_quantity");
+                    }
+                }
+
+                if (currentStock < qty) {
+                    throw new SQLException("Insufficient stock. Current stock: " + currentStock);
+                }
+
+                // log transaction
+                try (PreparedStatement ps = con.prepareStatement(insertTx)) {
+                    ps.setInt(1, productId);
+                    ps.setInt(2, qty);
+                    ps.setString(3, referenceNo);
+                    ps.setString(4, reason);
+                    ps.executeUpdate();
+                }
+
+                // update stock
+                try (PreparedStatement ps = con.prepareStatement(updateStock)) {
+                    ps.setInt(1, qty);
+                    ps.setInt(2, productId);
+                    ps.executeUpdate();
+                }
+
+                con.commit();
+                return true;
+
+            } catch (SQLException e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
+            }
+        }
+    }
+
+    // ============================
+    // INVENTORY TRANSACTION HISTORY
+    // for JTable:
+    // transaction_id, product_id, barcode, product_name, type, qty, reference, reason, date
+    // ============================
+    public static List<Object[]> fetchInventoryTransactions() throws SQLException {
+        String sql = """
+            SELECT
+              it.transaction_id,
+              p.product_id,
+              p.barcode,
+              p.name AS product_name,
+              it.transaction_type,
+              it.quantity,
+              it.reference_number,
+              it.reason,
+              it.transaction_date
+            FROM inventory_transactions it
+            JOIN products p ON it.product_id = p.product_id
+            ORDER BY it.transaction_id DESC
+        """;
 
         List<Object[]> rows = new ArrayList<>();
 
@@ -84,11 +156,63 @@ String sql = """
              ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
-                Object[] r = new Object[16];
-                for (int i = 0; i < 16; i++) r[i] = rs.getObject(i + 1);
-                rows.add(r);
+                rows.add(new Object[]{
+                        rs.getInt("transaction_id"),
+                        rs.getInt("product_id"),
+                        rs.getString("barcode"),
+                        rs.getString("product_name"),
+                        rs.getString("transaction_type"),
+                        rs.getInt("quantity"),
+                        rs.getString("reference_number"),
+                        rs.getString("reason"),
+                        rs.getTimestamp("transaction_date")
+                });
             }
         }
+
+        return rows;
+    }
+
+    // ============================
+    // STOCK MONITORING (Current stock)
+    // for JTable:
+    // product_id, barcode, name, category, supplier, stock_qty, reorder_level
+    // ============================
+    public static List<Object[]> fetchStockMonitoring() throws SQLException {
+        String sql = """
+            SELECT
+              p.product_id,
+              p.barcode,
+              p.name,
+              c.name AS category_name,
+              s.name AS supplier_name,
+              p.stock_quantity,
+              p.reorder_level
+            FROM products p
+            JOIN categories c ON p.category_id = c.category_id
+            JOIN suppliers s ON p.supplier_id = s.supplier_id
+            ORDER BY p.name ASC
+        """;
+
+        List<Object[]> rows = new ArrayList<>();
+
+        try (Connection con = getConn();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                rows.add(new Object[]{
+                        rs.getInt("product_id"),
+                        rs.getString("barcode"),
+                        rs.getString("name"),
+                        rs.getString("category_name"),
+                        rs.getString("supplier_name"),
+                        rs.getInt("stock_quantity"),
+                        rs.getInt("reorder_level")
+                });
+            }
+        }
+
         return rows;
     }
 }

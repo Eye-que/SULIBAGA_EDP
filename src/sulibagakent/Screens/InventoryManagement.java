@@ -1,57 +1,242 @@
 package sulibagakent.Screens;
-import java.util.List;
-import javax.swing.JOptionPane;
-import javax.swing.table.DefaultTableModel;
+
 import DbConnection.StockDAO;
-import java.awt.Window;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
+import java.awt.*;
 import java.sql.SQLException;
-import javax.swing.SwingUtilities;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-/**
- *
- * @author USER
- */
-public class InventoryManagement extends Gradient{
-    
-    private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(InventoryManagement.class.getName());
+public class InventoryManagement extends Gradient {
 
-private Dashboard dashboard;
-public InventoryManagement(Dashboard dashboard) {
-    this.dashboard = dashboard;
-    initComponents();
-    refreshTables();
-}
-    public void refreshTables() {
-    try {
-        List<Object[]> rows = StockDAO.fetchAllRows();
+    private static final java.util.logging.Logger logger =
+            java.util.logging.Logger.getLogger(InventoryManagement.class.getName());
 
-        // TABLE 1: Product Information (5 cols)
-        DefaultTableModel m1 = (DefaultTableModel) jTable1.getModel();
-        m1.setRowCount(0);
+    private Dashboard dashboard;
 
-        // TABLE 2: Batch and Stock Details (8 cols)
-        DefaultTableModel m2 = (DefaultTableModel) jTable2.getModel();
-        m2.setRowCount(0);
+    // For filtering Stock Monitoring table
+    private TableRowSorter<DefaultTableModel> stockSorter;
 
-        // TABLE 3: Audit Information (3 cols)
-        DefaultTableModel m3 = (DefaultTableModel) jTable3.getModel();
-        m3.setRowCount(0);
+    public InventoryManagement(Dashboard dashboard) {
+        this.dashboard = dashboard;
+        initComponents();
+
+        setupTables();
+        setupSearchAndCategoryFilter();
+
+        refreshTables();
+    }
+
+    // ==========================
+    // SETUP: table models + sorter + renderer (low stock highlight)
+    // ==========================
+    private void setupTables() {
+        // STOCK MONITORING TABLE (jTable2)
+        DefaultTableModel stockModel = (DefaultTableModel) jTable2.getModel();
+        stockSorter = new TableRowSorter<>(stockModel);
+        jTable2.setRowSorter(stockSorter);
+
+        // Highlight low stock rows
+        jTable2.setDefaultRenderer(Object.class, new LowStockRenderer());
+
+        // TRANSACTIONS TABLE (jTable1)
+        // No special sorter needed, but ok if you want.
+    }
+
+    // ==========================
+    // SETUP: Search + Category Filter (Stock Monitoring only)
+    // ==========================
+    private void setupSearchAndCategoryFilter() {
+        // Fix category combo default items
+        jComboBox1.removeAllItems();
+        jComboBox1.addItem("All Categories");
+
+        // Search listener
+        jTextField1.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { applyFilters(); }
+            public void removeUpdate(DocumentEvent e) { applyFilters(); }
+            public void changedUpdate(DocumentEvent e) { applyFilters(); }
+        });
+
+        // Category filter listener
+        jComboBox1.addActionListener(e -> applyFilters());
+    }
+
+    private void applyFilters() {
+        String search = jTextField1.getText().trim().toLowerCase();
+        String category = String.valueOf(jComboBox1.getSelectedItem());
+
+        stockSorter.setRowFilter(new RowFilter<DefaultTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+
+                // columns: Barcode(0), Product Name(1), Category(2), Supplier(3), Stock Qty(4), Reorder(5), Status(6)
+                String barcode = entry.getStringValue(0).toLowerCase();
+                String name = entry.getStringValue(1).toLowerCase();
+                String cat = entry.getStringValue(2);
+
+                boolean matchesSearch = search.isEmpty()
+                        || barcode.contains(search)
+                        || name.contains(search);
+
+                boolean matchesCategory = category == null
+                        || category.equals("All Categories")
+                        || cat.equalsIgnoreCase(category);
+
+                return matchesSearch && matchesCategory;
+            }
+        });
+    }
+
+    // ==========================
+    // MAIN REFRESH (Requirement: JTable display)
+    // ==========================
+    public final void refreshTables() {
+        try {
+            loadStockMonitoring();
+            loadTransactionHistory();
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Load failed: " + ex.getMessage());
+        }
+    }
+
+    // ==========================
+    // STOCK MONITORING (products table)
+    // ==========================
+    private void loadStockMonitoring() throws SQLException {
+        List<Object[]> rows = StockDAO.fetchStockMonitoring();
+
+        // jTable2 columns:
+        // "Barcode", "Product Name", "Category", "Supplier", "Stock Qty.", "Reorder Level", "Stock Status"
+        DefaultTableModel m = (DefaultTableModel) jTable2.getModel();
+        m.setRowCount(0);
+
+        // Build category list from current data
+        Set<String> categorySet = new HashSet<>();
+
+        int totalUnits = 0;
+        int lowStockCount = 0;
+        int outOfStockCount = 0;
 
         for (Object[] r : rows) {
-            // r indexes:
-            // 0 barcode,1 product_id,2 product_name,3 category,4 supplier_name,
-            // 5 batch_no,6 mfg,7 exp,8 qty,9 unit_cost,10 selling_price,11 storage,12 status,
-            // 13 date_stocked,14 stocked_by,15 remarks
+            // fetchStockMonitoring returns:
+            // product_id(0), barcode(1), name(2), category_name(3), supplier_name(4), stock_quantity(5), reorder_level(6)
 
-            m1.addRow(new Object[]{ r[0], r[1], r[2], r[3], r[4] });
-            m2.addRow(new Object[]{ r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12] });
-            m3.addRow(new Object[]{ r[13], r[14], r[15] });
+            String barcode = String.valueOf(r[1]);
+            String name = String.valueOf(r[2]);
+            String category = String.valueOf(r[3]);
+            String supplier = String.valueOf(r[4]);
+            int stockQty = Integer.parseInt(String.valueOf(r[5]));
+            int reorder = Integer.parseInt(String.valueOf(r[6]));
+
+            String status;
+            if (stockQty <= 0) status = "OUT OF STOCK";
+            else if (stockQty <= reorder) status = "LOW STOCK";
+            else status = "IN STOCK";
+
+            totalUnits += stockQty;
+            if (stockQty <= 0) outOfStockCount++;
+            if (stockQty > 0 && stockQty <= reorder) lowStockCount++;
+
+            categorySet.add(category);
+
+            m.addRow(new Object[]{
+                    barcode, name, category, supplier, stockQty, reorder, status
+            });
         }
 
-    } catch (SQLException ex) {
-        JOptionPane.showMessageDialog(this, "Load failed: " + ex.getMessage());
+        // Update cards (labels)
+        jLabel13.setText("Total Stock Units: " + totalUnits);
+        jLabel14.setText("Low Stock Items: " + lowStockCount);
+        jLabel15.setText("Out of Stock Items: " + outOfStockCount);
+
+        // Expiring soon not in requirement -> show 0 (or remove panel)
+        jLabel16.setText("Expiring Soon: 0");
+
+        // Refresh category filter items
+        Object selected = jComboBox1.getSelectedItem();
+        jComboBox1.removeAllItems();
+        jComboBox1.addItem("All Categories");
+        for (String c : categorySet) jComboBox1.addItem(c);
+
+        // Keep selected if still exists
+        if (selected != null) {
+            for (int i = 0; i < jComboBox1.getItemCount(); i++) {
+                if (String.valueOf(jComboBox1.getItemAt(i)).equalsIgnoreCase(String.valueOf(selected))) {
+                    jComboBox1.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+
+        applyFilters(); // keep filters after refresh
     }
-}
+
+    // ==========================
+    // TRANSACTION HISTORY (inventory_transactions table)
+    // ==========================
+    private void loadTransactionHistory() throws SQLException {
+        List<Object[]> rows = StockDAO.fetchInventoryTransactions();
+
+        // jTable1 columns:
+        // "Date", "Product", "Transaction Type", "Quantity", "Reference No.", "Remarks"
+        DefaultTableModel m = (DefaultTableModel) jTable1.getModel();
+        m.setRowCount(0);
+
+        for (Object[] r : rows) {
+            // fetchInventoryTransactions returns:
+            // transaction_id(0), product_id(1), barcode(2), product_name(3),
+            // transaction_type(4), quantity(5), reference_number(6), reason(7), transaction_date(8)
+
+            String product = r[2] + " - " + r[3];
+            m.addRow(new Object[]{
+                    r[8],         // Date/Time
+                    product,      // Product
+                    r[4],         // Type
+                    r[5],         // Qty
+                    r[6],         // Reference No.
+                    r[7]          // Remarks/Reason
+            });
+        }
+    }
+
+    // ==========================
+    // RENDERER: highlight low stock rows
+    // ==========================
+    private class LowStockRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean isSelected, boolean hasFocus,
+                                                       int row, int column) {
+
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+            if (isSelected) return c;
+
+            int modelRow = table.convertRowIndexToModel(row);
+
+            // stock qty = col 4, reorder = col 5
+            int stockQty = Integer.parseInt(String.valueOf(table.getModel().getValueAt(modelRow, 4)));
+            int reorder = Integer.parseInt(String.valueOf(table.getModel().getValueAt(modelRow, 5)));
+
+            if (stockQty <= 0) {
+                c.setBackground(new Color(255, 220, 220)); // light red
+            } else if (stockQty <= reorder) {
+                c.setBackground(new Color(255, 245, 200)); // light yellow
+            } else {
+                c.setBackground(Color.WHITE);
+            }
+
+            return c;
+        }
+    }
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
@@ -61,8 +246,6 @@ public InventoryManagement(Dashboard dashboard) {
         jTabbedPane1 = new javax.swing.JTabbedPane();
         jScrollPane2 = new javax.swing.JScrollPane();
         jTable2 = new javax.swing.JTable();
-        jScrollPane3 = new javax.swing.JScrollPane();
-        jTable3 = new javax.swing.JTable();
         jScrollPane1 = new javax.swing.JScrollPane();
         jTable1 = new javax.swing.JTable();
         jLabel2 = new javax.swing.JLabel();
@@ -72,23 +255,25 @@ public InventoryManagement(Dashboard dashboard) {
         jTextField1 = new javax.swing.JTextField();
         jComboBox1 = new javax.swing.JComboBox<>();
         jLabel3 = new javax.swing.JLabel();
-        jLabel4 = new javax.swing.JLabel();
-        jComboBox2 = new javax.swing.JComboBox<>();
         btnUpdate = new javax.swing.JButton();
         btnDelete = new javax.swing.JButton();
         jLabel5 = new javax.swing.JLabel();
         jPanel1 = new javax.swing.JPanel();
         jLabel9 = new javax.swing.JLabel();
         jLabel13 = new javax.swing.JLabel();
+        lblTotalStocks = new javax.swing.JLabel();
         jPanel2 = new javax.swing.JPanel();
         jLabel10 = new javax.swing.JLabel();
         jLabel14 = new javax.swing.JLabel();
+        lblLowStocks = new javax.swing.JLabel();
         jPanel3 = new javax.swing.JPanel();
         jLabel11 = new javax.swing.JLabel();
         jLabel15 = new javax.swing.JLabel();
+        lblOutOfStock = new javax.swing.JLabel();
         jPanel4 = new javax.swing.JPanel();
         jLabel12 = new javax.swing.JLabel();
         jLabel16 = new javax.swing.JLabel();
+        lblExpiringSoon = new javax.swing.JLabel();
 
         setPreferredSize(new java.awt.Dimension(1250, 850));
         setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
@@ -120,50 +305,43 @@ public InventoryManagement(Dashboard dashboard) {
 
         jTable2.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null}
+                {null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null}
             },
             new String [] {
-                "Batch No.", "Manufacturing Date", "Exp. Date", "Qty. Added", "Unit Cost", "Selling Price", "Storage Loc.", "Stock Status"
+                "Barcode", "Product Name", "Category", "Supplier", "Stock Qty.", "Reorder Level", "Stock Satus"
             }
-        ));
+        ) {
+            boolean[] canEdit = new boolean [] {
+                false, false, false, false, false, false, false
+            };
+
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit [columnIndex];
+            }
+        });
         jScrollPane2.setViewportView(jTable2);
 
-        jTabbedPane1.addTab("Batch and Stock Details", jScrollPane2);
-
-        jTable3.setModel(new javax.swing.table.DefaultTableModel(
-            new Object [][] {
-                {null, null, null},
-                {null, null, null},
-                {null, null, null},
-                {null, null, null}
-            },
-            new String [] {
-                "Date Stock", "Stocked by", "Remarks"
-            }
-        ));
-        jScrollPane3.setViewportView(jTable3);
-
-        jTabbedPane1.addTab("Audit Information", jScrollPane3);
+        jTabbedPane1.addTab("Stock Monitoring", jScrollPane2);
 
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null, null, null, null},
-                {null, null, null, null, null},
-                {null, null, null, null, null},
-                {null, null, null, null, null}
+                {null, null, null, null, null, null},
+                {null, null, null, null, null, null},
+                {null, null, null, null, null, null},
+                {null, null, null, null, null, null}
             },
             new String [] {
-                "Barcode", "Product ID", "Product Name", "Category", "Supplier Name"
+                "Date", "Product", "Transaction Type", "Quantity", "Reference No.", "Remarks"
             }
         ));
         jScrollPane1.setViewportView(jTable1);
 
-        jTabbedPane1.addTab("Product Information", jScrollPane1);
+        jTabbedPane1.addTab("Stock Transaction", jScrollPane1);
 
-        add(jTabbedPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 200, 1140, 440));
+        add(jTabbedPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 200, 1480, 440));
 
         jLabel2.setText("Search: ");
         add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 170, -1, -1));
@@ -184,12 +362,6 @@ public InventoryManagement(Dashboard dashboard) {
 
         jLabel3.setText("Category:");
         add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 170, -1, -1));
-
-        jLabel4.setText("Location:");
-        add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(500, 170, -1, -1));
-
-        jComboBox2.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
-        add(jComboBox2, new org.netbeans.lib.awtextra.AbsoluteConstraints(560, 160, 120, 30));
 
         btnUpdate.setBackground(new java.awt.Color(109, 213, 180));
         btnUpdate.setText("Update");
@@ -214,6 +386,9 @@ public InventoryManagement(Dashboard dashboard) {
         jLabel13.setText("Total Stock Units");
         jPanel1.add(jLabel13, new org.netbeans.lib.awtextra.AbsoluteConstraints(60, 10, -1, -1));
 
+        lblTotalStocks.setText("{}");
+        jPanel1.add(lblTotalStocks, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 40, -1, -1));
+
         add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 80, 200, 70));
 
         jPanel2.setBackground(new java.awt.Color(255, 255, 255));
@@ -226,6 +401,9 @@ public InventoryManagement(Dashboard dashboard) {
         jLabel14.setFont(new java.awt.Font("Segoe UI", 0, 18)); // NOI18N
         jLabel14.setText("Low Stock Items");
         jPanel2.add(jLabel14, new org.netbeans.lib.awtextra.AbsoluteConstraints(60, 10, -1, -1));
+
+        lblLowStocks.setText("{}");
+        jPanel2.add(lblLowStocks, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 40, -1, -1));
 
         add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 80, 200, 70));
 
@@ -240,6 +418,9 @@ public InventoryManagement(Dashboard dashboard) {
         jLabel15.setText("Out of Stock Items");
         jPanel3.add(jLabel15, new org.netbeans.lib.awtextra.AbsoluteConstraints(60, 10, -1, -1));
 
+        lblOutOfStock.setText("{}");
+        jPanel3.add(lblOutOfStock, new org.netbeans.lib.awtextra.AbsoluteConstraints(120, 40, -1, -1));
+
         add(jPanel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(730, 80, 220, 70));
 
         jPanel4.setBackground(new java.awt.Color(255, 255, 255));
@@ -252,6 +433,9 @@ public InventoryManagement(Dashboard dashboard) {
         jLabel16.setFont(new java.awt.Font("Segoe UI", 0, 18)); // NOI18N
         jLabel16.setText("Expiring Soon");
         jPanel4.add(jLabel16, new org.netbeans.lib.awtextra.AbsoluteConstraints(70, 10, -1, -1));
+
+        lblExpiringSoon.setText("{}");
+        jPanel4.add(lblExpiringSoon, new org.netbeans.lib.awtextra.AbsoluteConstraints(110, 40, -1, -1));
 
         add(jPanel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(490, 80, 220, 70));
     }// </editor-fold>//GEN-END:initComponents
@@ -272,7 +456,9 @@ public InventoryManagement(Dashboard dashboard) {
     }//GEN-LAST:event_jLabel1MouseClicked
 
     private void btnUpdateActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnUpdateActionPerformed
-     
+     JOptionPane.showMessageDialog(this,
+                "Update is not recommended for inventory transactions.\n" +
+                "Use Stock In / Stock Out to adjust properly.");
     }//GEN-LAST:event_btnUpdateActionPerformed
 
 
@@ -282,7 +468,6 @@ public InventoryManagement(Dashboard dashboard) {
     private javax.swing.JButton btnStock;
     private javax.swing.JButton btnUpdate;
     private javax.swing.JComboBox<String> jComboBox1;
-    private javax.swing.JComboBox<String> jComboBox2;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel11;
@@ -293,7 +478,6 @@ public InventoryManagement(Dashboard dashboard) {
     private javax.swing.JLabel jLabel16;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
-    private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
     private javax.swing.JLabel jLabel7;
@@ -305,11 +489,13 @@ public InventoryManagement(Dashboard dashboard) {
     private javax.swing.JPanel jPanel4;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
-    private javax.swing.JScrollPane jScrollPane3;
     private javax.swing.JTabbedPane jTabbedPane1;
     private javax.swing.JTable jTable1;
     private javax.swing.JTable jTable2;
-    private javax.swing.JTable jTable3;
     private javax.swing.JTextField jTextField1;
+    private javax.swing.JLabel lblExpiringSoon;
+    private javax.swing.JLabel lblLowStocks;
+    private javax.swing.JLabel lblOutOfStock;
+    private javax.swing.JLabel lblTotalStocks;
     // End of variables declaration//GEN-END:variables
 }

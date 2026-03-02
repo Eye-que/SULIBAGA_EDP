@@ -63,8 +63,8 @@ private boolean usernameExists(String username) {
     private boolean editMode = false;
 private String originalUsername = null;
 
-    public void setEditMode(String role, String username, String first, String last,
-                        String email, String contact, String status) {
+    public void setEditMode(String role, String username, String first, String middle, String last,
+                        String status) {
 
     editMode = true;
     originalUsername = username;
@@ -73,9 +73,8 @@ private String originalUsername = null;
     cmbRole.setSelectedItem(role);
     txtUsername.setText(username);
     txtFirstName.setText(first);
+    txtMiddleName.setText(middle);
     txtLastName.setText(last);
-    txtEmail.setText(email);
-    txtContactNumber.setText(contact);
 
     // you don't have status field in AddUser UI right now
     // so we won't edit status unless you add a combo box.
@@ -105,8 +104,6 @@ private String originalUsername = null;
         txtUsername = new javax.swing.JTextField();
         txtFirstName = new javax.swing.JTextField();
         txtLastName = new javax.swing.JTextField();
-        txtEmail = new javax.swing.JTextField();
-        txtContactNumber = new javax.swing.JTextField();
         txtPassword = new javax.swing.JPasswordField();
         txtConfirmPassword = new javax.swing.JPasswordField();
         backbtn = new javax.swing.JButton();
@@ -115,14 +112,16 @@ private String originalUsername = null;
         jLabel6 = new javax.swing.JLabel();
         jLabel7 = new javax.swing.JLabel();
         jLabel11 = new javax.swing.JLabel();
-        jLabel14 = new javax.swing.JLabel();
-        jLabel3 = new javax.swing.JLabel();
         jLabel4 = new javax.swing.JLabel();
         jLabel5 = new javax.swing.JLabel();
         jPanel2 = new javax.swing.JPanel();
         logoutBtn = new javax.swing.JButton();
         jLabel8 = new javax.swing.JLabel();
         jLabel1 = new javax.swing.JLabel();
+        jLabel9 = new javax.swing.JLabel();
+        txtMiddleName = new javax.swing.JTextField();
+        jLabel10 = new javax.swing.JLabel();
+        status = new javax.swing.JComboBox<>();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setMaximumSize(new java.awt.Dimension(650, 500));
@@ -133,7 +132,7 @@ private String originalUsername = null;
         jPanel1.setPreferredSize(new java.awt.Dimension(600, 550));
         jPanel1.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
-        cmbRole.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Cashier", "Inventory Staff" }));
+        cmbRole.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Super Admin", "Cashier", "Manager", "Inventory Clerk" }));
         cmbRole.addActionListener(this::cmbRoleActionPerformed);
         jPanel1.add(cmbRole, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 100, 180, 40));
         jPanel1.add(txtUsername, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 170, 180, 40));
@@ -142,27 +141,23 @@ private String originalUsername = null;
         jPanel1.add(txtFirstName, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 240, 180, 40));
 
         txtLastName.addActionListener(this::txtLastNameActionPerformed);
-        jPanel1.add(txtLastName, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 310, 180, 40));
-
-        txtEmail.addActionListener(this::txtEmailActionPerformed);
-        jPanel1.add(txtEmail, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 100, 180, 40));
-        jPanel1.add(txtContactNumber, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 170, 180, 40));
+        jPanel1.add(txtLastName, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 100, 180, 40));
 
         txtPassword.addActionListener(this::txtPasswordActionPerformed);
-        jPanel1.add(txtPassword, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 240, 180, 40));
+        jPanel1.add(txtPassword, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 170, 180, 40));
 
         txtConfirmPassword.addActionListener(this::txtConfirmPasswordActionPerformed);
-        jPanel1.add(txtConfirmPassword, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 310, 180, 40));
+        jPanel1.add(txtConfirmPassword, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 240, 180, 40));
 
         backbtn.setBackground(new java.awt.Color(94, 197, 168));
         backbtn.setText("Back");
         backbtn.addActionListener(this::backbtnActionPerformed);
-        jPanel1.add(backbtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(220, 390, -1, 30));
+        jPanel1.add(backbtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(220, 430, -1, 30));
 
         btnRegister.setBackground(new java.awt.Color(94, 197, 168));
         btnRegister.setText("Register");
         btnRegister.addActionListener(this::btnRegisterActionPerformed);
-        jPanel1.add(btnRegister, new org.netbeans.lib.awtextra.AbsoluteConstraints(370, 390, -1, 30));
+        jPanel1.add(btnRegister, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 430, -1, 30));
 
         jLabel2.setText("Role:");
         jPanel1.add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 120, -1, -1));
@@ -174,19 +169,13 @@ private String originalUsername = null;
         jPanel1.add(jLabel7, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 260, -1, -1));
 
         jLabel11.setText("Last Name:");
-        jPanel1.add(jLabel11, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 330, -1, -1));
-
-        jLabel14.setText("Email: ");
-        jPanel1.add(jLabel14, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 110, -1, -1));
-
-        jLabel3.setText("Contact Number: ");
-        jPanel1.add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 190, -1, -1));
+        jPanel1.add(jLabel11, new org.netbeans.lib.awtextra.AbsoluteConstraints(330, 120, -1, -1));
 
         jLabel4.setText("Password:");
-        jPanel1.add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 270, -1, 10));
+        jPanel1.add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(330, 190, -1, 10));
 
         jLabel5.setText("Confirm password:");
-        jPanel1.add(jLabel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 330, -1, 20));
+        jPanel1.add(jLabel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 260, -1, 20));
 
         jPanel2.setBackground(new java.awt.Color(94, 197, 168));
         jPanel2.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
@@ -204,6 +193,18 @@ private String originalUsername = null;
         jPanel2.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(250, 30, -1, -1));
 
         jPanel1.add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 650, 70));
+
+        jLabel9.setText("Middle Name: ");
+        jPanel1.add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 330, -1, -1));
+
+        txtMiddleName.addActionListener(this::txtMiddleNameActionPerformed);
+        jPanel1.add(txtMiddleName, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 310, 180, 40));
+
+        jLabel10.setText("Status");
+        jPanel1.add(jLabel10, new org.netbeans.lib.awtextra.AbsoluteConstraints(330, 330, -1, -1));
+
+        status.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Active", "Inactive" }));
+        jPanel1.add(status, new org.netbeans.lib.awtextra.AbsoluteConstraints(440, 310, 180, 40));
 
         getContentPane().add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 650, 500));
 
@@ -223,10 +224,6 @@ private String originalUsername = null;
         // TODO add your handling code here:
     }//GEN-LAST:event_txtLastNameActionPerformed
 
-    private void txtEmailActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtEmailActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_txtEmailActionPerformed
-
     private void txtPasswordActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtPasswordActionPerformed
         // TODO add your handling code here:
     }//GEN-LAST:event_txtPasswordActionPerformed
@@ -244,13 +241,12 @@ private String originalUsername = null;
     private void btnRegisterActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnRegisterActionPerformed
       String role = cmbRole.getSelectedItem().toString().trim();
     String firstName = txtFirstName.getText().trim();
+    String middleName = txtMiddleName.getText().trim();
     String lastName  = txtLastName.getText().trim();
-    String email     = txtEmail.getText().trim();
-    String contact   = txtContactNumber.getText().trim();
     String username  = txtUsername.getText().trim();
 
     // Required fields
-    if (role.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || username.isEmpty()) {
+    if (role.isEmpty() || firstName.isEmpty() || middleName.isEmpty()|| lastName.isEmpty() || username.isEmpty()) {
         JOptionPane.showMessageDialog(this, "Please fill in all required fields.");
         return;
     }
@@ -276,7 +272,7 @@ private String originalUsername = null;
         // Status not in your form, so keep it as Active by default OR leave as-is
         String status = "Active";
 
-        boolean ok = UserDAO.updateUserByUsername(username, role, firstName, lastName, email, contact, status);
+        boolean ok = UserDAO.updateUserByUsername(username, role, firstName, middleName, lastName, status);
 
         if (ok) {
             JOptionPane.showMessageDialog(this, "User updated successfully!");
@@ -311,7 +307,7 @@ private String originalUsername = null;
     }
 
     try {
-        UserDAO.addUser(role, firstName, lastName, username, password, email, contact);
+        UserDAO.addUser(role, firstName, middleName, lastName, username, password);
         JOptionPane.showMessageDialog(this, "Registered successfully!");
         if (usersManagement != null) usersManagement.refreshUsers();
         this.dispose();
@@ -331,6 +327,10 @@ private String originalUsername = null;
         }
     }//GEN-LAST:event_logoutBtnActionPerformed
 
+    private void txtMiddleNameActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtMiddleNameActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_txtMiddleNameActionPerformed
+
     /**
      * @param args the command line arguments
      */
@@ -340,23 +340,23 @@ private String originalUsername = null;
     private javax.swing.JButton btnRegister;
     private javax.swing.JComboBox<String> cmbRole;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel11;
-    private javax.swing.JLabel jLabel14;
     private javax.swing.JLabel jLabel2;
-    private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
     private javax.swing.JLabel jLabel7;
     private javax.swing.JLabel jLabel8;
+    private javax.swing.JLabel jLabel9;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JButton logoutBtn;
+    private javax.swing.JComboBox<String> status;
     private javax.swing.JPasswordField txtConfirmPassword;
-    private javax.swing.JTextField txtContactNumber;
-    private javax.swing.JTextField txtEmail;
     private javax.swing.JTextField txtFirstName;
     private javax.swing.JTextField txtLastName;
+    private javax.swing.JTextField txtMiddleName;
     private javax.swing.JPasswordField txtPassword;
     private javax.swing.JTextField txtUsername;
     // End of variables declaration//GEN-END:variables

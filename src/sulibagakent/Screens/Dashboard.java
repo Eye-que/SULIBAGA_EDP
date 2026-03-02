@@ -1,25 +1,19 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/GUIForms/JFrame.java to edit this template
- */
 package sulibagakent.Screens;
 
-import DbConnection.ActivityDAO;
+import sulibagakent.Screens.Gradients.GradientFrame;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import sulibagakent.CurrentUser;
 
-public class Dashboard extends javax.swing.JFrame {
+public class Dashboard extends GradientFrame{
     
     private CardLayout card;
-    private javax.swing.JPanel contentPanel;
 
 
 // hover colors
@@ -30,7 +24,6 @@ private JLabel activeNav = null; // track which nav is selected
 
 public Dashboard() {
     initComponents();
-    applyGradientBackground(); // ✅ must be after initComponents
     setupCards();
     setupNavEffects();
 
@@ -40,53 +33,11 @@ public Dashboard() {
 
 public Dashboard(String firstName) {
     initComponents();
-    applyGradientBackground(); // ✅ must be after initComponents
     setupCards();
     setupNavEffects();
 
     jLabel5.setText("Welcome, " + firstName);
     showHome();
-}
-private void applyGradientBackground() {
-    GradientPanel bg = new GradientPanel();
-    bg.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
-
-    // ✅ IMPORTANT: remove all old components from old content pane first
-    getContentPane().removeAll();
-
-    // ✅ replace content pane
-    setContentPane(bg);
-
-    // ✅ Use ONE WIDTH only (match your frame size)
-    int W = 1270;  // frame width
-    int H = 950;   // frame height
-
-    // ✅ keep fixed size (no pack)
-    setSize(W, H);
-
-    // Header (match width)
-    bg.add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, W, 90));
-
-    // Icons
-    bg.add(btnProducts,   new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 100, -1, -1));
-    bg.add(btnInventory,  new org.netbeans.lib.awtextra.AbsoluteConstraints(280, 100, -1, -1));
-    bg.add(btnController, new org.netbeans.lib.awtextra.AbsoluteConstraints(490, 100, -1, -1));
-    bg.add(btnReports,    new org.netbeans.lib.awtextra.AbsoluteConstraints(740, 100, -1, -1));
-    bg.add(btnUsers,      new org.netbeans.lib.awtextra.AbsoluteConstraints(930, 100, -1, -1));
-
-    // Labels
-    bg.add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 130, -1, -1));
-    bg.add(jlabel,  new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 130, -1, -1));
-    bg.add(jLabel6, new org.netbeans.lib.awtextra.AbsoluteConstraints(570, 130, -1, -1));
-    bg.add(jLabel8, new org.netbeans.lib.awtextra.AbsoluteConstraints(810, 130, -1, -1));
-    bg.add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(1010,130, -1, -1));
-
-    // ✅ Content panel (match width)
-    bg.add(pnlContent, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 210, W, 710));
-
-    setLocationRelativeTo(null);
-    bg.revalidate();
-    bg.repaint();
 }
 private void clearActive() {
     if (activeNav != null) {
@@ -108,14 +59,18 @@ private void setupCards() {
     card = new CardLayout();
     pnlContent.setLayout(card);
 
-    // ✅ HOME first
     pnlContent.add(new HomePanel(this), "HOME");
 
     pnlContent.add(new ProductsManagement(this), "PRODUCTS");
     pnlContent.add(new InventoryManagement(this), "INVENTORY");
-    pnlContent.add(new POSController(), "POS");
-    pnlContent.add(new UsersManagement(this), "USERS");
+    pnlContent.add(new PointOfSales(), "POS");
     pnlContent.add(new Reports(), "REPORTS");
+    pnlContent.add(new UsersManagement(this), "USERS");
+
+    // ✅ ADD these two panels (create these classes)
+    pnlContent.add(new Categories(this), "CATEGORIES");
+    pnlContent.add(new Suppliers(this), "SUPPLIERS");
+    pnlContent.add(new SalesHistory(this), "SALES");
 }
 private void setupNavEffects() {
     wireNav(btnProducts, "PRODUCTS");
@@ -123,6 +78,20 @@ private void setupNavEffects() {
     wireNav(btnController, "POS");
     wireNav(btnReports, "REPORTS");
     wireNav(btnUsers, "USERS");
+    wireNav(btnSales, "SALES");
+    wireNav(btnSuppliers, "USERS");
+
+    // ✅ new nav icons
+    wireNav(jLabel3, "CATEGORIES");
+    wireNav(jLabel4, "SUPPLIERS");
+    wireNav(jLabel2, "PRODUCTS");
+    wireNav(jlabel, "INVENTORY");
+    wireNav(jLabel6, "POS");
+    wireNav(jLabel8, "REPORTS");
+    wireNav(jLabel10, "USERS");
+    wireNav(btnCategories, "CATEGORIES");
+    wireNav(btnSuppliers, "SUPPLIERS");
+    wireNav(sales, "SALES");
 
     // Home logo click = go home
     Home.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -133,17 +102,14 @@ private void setupNavEffects() {
         }
     });
 }
-
 private void wireNav(JLabel label, String pageName) {
-    // Default = transparent (no background)
     label.setOpaque(false);
     label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    label.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+    label.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
     label.addMouseListener(new MouseAdapter() {
         @Override
         public void mouseEntered(MouseEvent e) {
-            // show hover only if not active
             if (label != activeNav) {
                 label.setOpaque(true);
                 label.setBackground(HOVER_BG);
@@ -152,7 +118,6 @@ private void wireNav(JLabel label, String pageName) {
 
         @Override
         public void mouseExited(MouseEvent e) {
-            // remove hover only if not active
             if (label != activeNav) {
                 label.setOpaque(false);
                 label.repaint();
@@ -161,8 +126,8 @@ private void wireNav(JLabel label, String pageName) {
 
         @Override
         public void mouseClicked(MouseEvent e) {
-            setActive(label); 
-            showPage(pageName);      // switch page
+            setActive(label);
+            showPage(pageName);
         }
     });
 }
@@ -195,11 +160,17 @@ private void setActive(JLabel clickedLabel) {
         jlabel = new javax.swing.JLabel();
         jLabel6 = new javax.swing.JLabel();
         jLabel8 = new javax.swing.JLabel();
-        jLabel9 = new javax.swing.JLabel();
         btnController = new javax.swing.JLabel();
         btnReports = new javax.swing.JLabel();
         btnUsers = new javax.swing.JLabel();
         pnlContent = new javax.swing.JPanel();
+        jLabel10 = new javax.swing.JLabel();
+        btnCategories = new javax.swing.JLabel();
+        btnSuppliers = new javax.swing.JLabel();
+        jLabel3 = new javax.swing.JLabel();
+        jLabel4 = new javax.swing.JLabel();
+        btnSales = new javax.swing.JLabel();
+        sales = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setBackground(new java.awt.Color(247, 252, 250));
@@ -216,13 +187,13 @@ private void setActive(JLabel clickedLabel) {
                 logoutBtnActionPerformed(evt);
             }
         });
-        jPanel1.add(logoutBtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(1120, 40, 80, 30));
+        jPanel1.add(logoutBtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(1410, 40, 80, 30));
         jPanel1.add(jSeparator1, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 70, -1, -1));
         jPanel1.add(jSeparator2, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 80, -1, -1));
 
         jLabel5.setFont(new java.awt.Font("Segoe UI", 0, 18)); // NOI18N
         jLabel5.setText("Welcome, ");
-        jPanel1.add(jLabel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(900, 40, -1, -1));
+        jPanel1.add(jLabel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(1200, 40, -1, -1));
         jPanel1.add(jSeparator3, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 60, 180, -1));
 
         Home.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/POS (1).png"))); // NOI18N
@@ -237,7 +208,7 @@ private void setActive(JLabel clickedLabel) {
         jLabel1.setText("SwiftSell POS");
         jPanel1.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(150, 30, -1, -1));
 
-        getContentPane().add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 1360, 90));
+        getContentPane().add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 1580, 90));
 
         btnProducts.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/products.png"))); // NOI18N
         btnProducts.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -250,11 +221,11 @@ private void setActive(JLabel clickedLabel) {
                 btnProductsKeyPressed(evt);
             }
         });
-        getContentPane().add(btnProducts, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 100, -1, -1));
+        getContentPane().add(btnProducts, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 100, -1, -1));
 
         jLabel2.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
         jLabel2.setText("PRODUCTS");
-        getContentPane().add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 130, -1, -1));
+        getContentPane().add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 120, -1, -1));
 
         btnInventory.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/inventory.png"))); // NOI18N
         btnInventory.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -262,23 +233,19 @@ private void setActive(JLabel clickedLabel) {
                 btnInventoryMouseClicked(evt);
             }
         });
-        getContentPane().add(btnInventory, new org.netbeans.lib.awtextra.AbsoluteConstraints(280, 100, -1, -1));
+        getContentPane().add(btnInventory, new org.netbeans.lib.awtextra.AbsoluteConstraints(210, 100, -1, -1));
 
         jlabel.setFont(new java.awt.Font("Yu Gothic UI Semibold", 0, 16)); // NOI18N
         jlabel.setText("INVENTORY");
-        getContentPane().add(jlabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 130, -1, -1));
+        getContentPane().add(jlabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(300, 120, -1, -1));
 
         jLabel6.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
         jLabel6.setText("POS CONTROLLER");
-        getContentPane().add(jLabel6, new org.netbeans.lib.awtextra.AbsoluteConstraints(570, 130, -1, -1));
+        getContentPane().add(jLabel6, new org.netbeans.lib.awtextra.AbsoluteConstraints(480, 120, -1, -1));
 
         jLabel8.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
         jLabel8.setText("REPORTS");
-        getContentPane().add(jLabel8, new org.netbeans.lib.awtextra.AbsoluteConstraints(810, 130, -1, -1));
-
-        jLabel9.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
-        jLabel9.setText("USERS");
-        getContentPane().add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(1010, 130, -1, -1));
+        getContentPane().add(jLabel8, new org.netbeans.lib.awtextra.AbsoluteConstraints(710, 120, -1, -1));
 
         btnController.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/management.png"))); // NOI18N
         btnController.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -286,7 +253,7 @@ private void setActive(JLabel clickedLabel) {
                 btnControllerMouseClicked(evt);
             }
         });
-        getContentPane().add(btnController, new org.netbeans.lib.awtextra.AbsoluteConstraints(490, 100, -1, -1));
+        getContentPane().add(btnController, new org.netbeans.lib.awtextra.AbsoluteConstraints(400, 100, -1, -1));
 
         btnReports.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/seo-report.png"))); // NOI18N
         btnReports.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -294,7 +261,7 @@ private void setActive(JLabel clickedLabel) {
                 btnReportsMouseClicked(evt);
             }
         });
-        getContentPane().add(btnReports, new org.netbeans.lib.awtextra.AbsoluteConstraints(740, 100, -1, -1));
+        getContentPane().add(btnReports, new org.netbeans.lib.awtextra.AbsoluteConstraints(630, 100, -1, -1));
 
         btnUsers.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/group_1.png"))); // NOI18N
         btnUsers.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -302,8 +269,33 @@ private void setActive(JLabel clickedLabel) {
                 btnUsersMouseClicked(evt);
             }
         });
-        getContentPane().add(btnUsers, new org.netbeans.lib.awtextra.AbsoluteConstraints(930, 100, -1, -1));
-        getContentPane().add(pnlContent, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 210, 1260, 710));
+        getContentPane().add(btnUsers, new org.netbeans.lib.awtextra.AbsoluteConstraints(800, 100, -1, -1));
+        getContentPane().add(pnlContent, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 180, 1600, 740));
+
+        jLabel10.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
+        jLabel10.setText("USERS");
+        getContentPane().add(jLabel10, new org.netbeans.lib.awtextra.AbsoluteConstraints(880, 120, -1, -1));
+
+        btnCategories.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
+        btnCategories.setText("CATEGORIES");
+        getContentPane().add(btnCategories, new org.netbeans.lib.awtextra.AbsoluteConstraints(1020, 120, -1, -1));
+
+        btnSuppliers.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
+        btnSuppliers.setText("SUPPLIERS");
+        getContentPane().add(btnSuppliers, new org.netbeans.lib.awtextra.AbsoluteConstraints(1220, 120, -1, -1));
+
+        jLabel3.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/categories.png"))); // NOI18N
+        getContentPane().add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(940, 100, -1, -1));
+
+        jLabel4.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/supplier.png"))); // NOI18N
+        getContentPane().add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(1140, 100, -1, -1));
+
+        btnSales.setFont(new java.awt.Font("Segoe UI Semibold", 1, 16)); // NOI18N
+        btnSales.setText("SALES HISTORY");
+        getContentPane().add(btnSales, new org.netbeans.lib.awtextra.AbsoluteConstraints(1410, 120, -1, -1));
+
+        sales.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/revenue.png"))); // NOI18N
+        getContentPane().add(sales, new org.netbeans.lib.awtextra.AbsoluteConstraints(1330, 100, -1, -1));
 
         pack();
         setLocationRelativeTo(null);
@@ -337,10 +329,6 @@ private void setActive(JLabel clickedLabel) {
 
     }//GEN-LAST:event_btnControllerMouseClicked
 
-    private void btnReportsMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btnReportsMouseClicked
-
-    }//GEN-LAST:event_btnReportsMouseClicked
-
     private void HomeMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_HomeMouseClicked
         showPage("HOME");
     }//GEN-LAST:event_HomeMouseClicked
@@ -348,6 +336,10 @@ private void setActive(JLabel clickedLabel) {
     private void btnUsersMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btnUsersMouseClicked
         showPage("USERS");
     }//GEN-LAST:event_btnUsersMouseClicked
+
+    private void btnReportsMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btnReportsMouseClicked
+
+    }//GEN-LAST:event_btnReportsMouseClicked
 
     /**
      * @param args the command line arguments
@@ -386,17 +378,22 @@ private void setActive(JLabel clickedLabel) {
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel Home;
+    private javax.swing.JLabel btnCategories;
     private javax.swing.JLabel btnController;
     private javax.swing.JLabel btnInventory;
     private javax.swing.JLabel btnProducts;
     private javax.swing.JLabel btnReports;
+    private javax.swing.JLabel btnSales;
+    private javax.swing.JLabel btnSuppliers;
     private javax.swing.JLabel btnUsers;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
     private javax.swing.JLabel jLabel8;
-    private javax.swing.JLabel jLabel9;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JSeparator jSeparator1;
     private javax.swing.JSeparator jSeparator2;
@@ -404,6 +401,7 @@ private void setActive(JLabel clickedLabel) {
     private javax.swing.JLabel jlabel;
     private javax.swing.JButton logoutBtn;
     private javax.swing.JPanel pnlContent;
+    private javax.swing.JLabel sales;
     // End of variables declaration//GEN-END:variables
 
 }

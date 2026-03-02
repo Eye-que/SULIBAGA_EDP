@@ -1,258 +1,270 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/GUIForms/JFrame.java to edit this template
- */
 package sulibagakent.Screens;
 
-import DbConnection.ActivityDAO;
-import javax.swing.JOptionPane;
+import DbConnection.ProductDAO;
 import DbConnection.StockDAO;
+
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.JOptionPane;
 import java.sql.SQLException;
-/**
- *
- * @author SULIBAGA-KE
- */
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class ProductStockingFrame extends javax.swing.JFrame {
 
-    /**
-     * Creates new form ProductStockingFrame
-     */
-private InventoryManagement inventory;
+    private InventoryManagement inventory;
 
-public ProductStockingFrame(InventoryManagement inventory) {
-    this.inventory = inventory;
-    initComponents();
-    setLocationRelativeTo(null);
+    // display -> product_id
+    private final Map<String, Integer> productMap = new HashMap<>();
 
-    // safer: closing this window should not exit the whole app
-}
+    private boolean productsLoaded = false;
+
+    public ProductStockingFrame(InventoryManagement inventory) {
+        this.inventory = inventory;
+        initComponents();
+        setLocationRelativeTo(null);
+
+        // Auto date (YYYY-MM-DD)
+        lblDate.setText(LocalDate.now().toString());
+        lblDate.setEditable(false);
+
+        // Category + Supplier should be display-only (auto-filled)
+        cmbCategory.setEnabled(false);
+        cmbSupplierName.setEnabled(false);
+
+        loadProductsToCombo();
+
+        // Default transaction type
+        jComboBox1.setSelectedIndex(0); // Stock in
+    }
+
+    // =========================
+    // LOAD PRODUCTS FOR "Select Product"
+    // =========================
+    private void loadProductsToCombo() {
+        try {
+            productMap.clear();
+            DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) cmbProduct.getModel();
+            model.removeAllElements();
+            model.addElement("Select Product");
+
+            // ProductDAO.fetchAll() returns:
+            // product_id, barcode, name, category_name, supplier_name, description, cost_price, selling_price, stock_quantity, reorder_level
+            List<Object[]> rows = ProductDAO.fetchAll();
+
+            for (Object[] r : rows) {
+                int productId = (int) r[0];
+                String barcode = String.valueOf(r[1]);
+                String name = String.valueOf(r[2]);
+
+                String display = barcode + " - " + name;
+                productMap.put(display, productId);
+                model.addElement(display);
+            }
+
+            cmbProduct.setSelectedIndex(0);
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Failed to load products: " + e.getMessage());
+        }
+    }
+
+    // =========================
+    // AUTO-FILL product info when selecting product
+    // =========================
+    private void fillSelectedProductInfo() {
+        String selected = (String) cmbProduct.getSelectedItem();
+        if (selected == null || selected.equals("Select Product")) {
+            txtProductName.setText("");
+            setComboSingleValue(cmbCategory, "Select Category");
+            setComboSingleValue(cmbSupplierName, "Select Supplier");
+            return;
+        }
+
+        try {
+            int productId = productMap.get(selected);
+
+            // Find the product row again (simple approach using fetchAll)
+            List<Object[]> rows = ProductDAO.fetchAll();
+            for (Object[] r : rows) {
+                int id = (int) r[0];
+                if (id == productId) {
+                    String name = String.valueOf(r[2]);
+                    String categoryName = String.valueOf(r[3]);
+                    String supplierName = String.valueOf(r[4]);
+
+                    txtProductName.setText(name);
+                    txtProductName.setEditable(false);
+
+                    setComboSingleValue(cmbCategory, categoryName);
+                    setComboSingleValue(cmbSupplierName, supplierName);
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Failed to fill product info: " + e.getMessage());
+        }
+    }
+
+    private void setComboSingleValue(javax.swing.JComboBox<String> combo, String value) {
+        DefaultComboBoxModel<String> m = new DefaultComboBoxModel<>();
+        m.addElement(value);
+        combo.setModel(m);
+        combo.setSelectedIndex(0);
+    }
+
+    // =========================
+    // CLEAR
+    // =========================
     private void clearFields() {
+        cmbProduct.setSelectedIndex(0);
+        txtProductName.setText("");
+        txtQuantityAdded.setText("");
+        jTextField1.setText("");     // reference number field (rename to txtReferenceNo if you want)
+        txtRemarks.setText("");
 
-    txtBarcode.setText("");
-    txtProductId.setText("");
-    txtProductName.setText("");
-    txtSupplierName.setText("");
+        lblDate.setText(LocalDate.now().toString());
 
-    txtBatchNumber.setText("");
-    txtManufactureDate.setText("");
-    txtExpirationDate.setText("");
-    txtQuantityAdded.setText("");
-    txtUnitCost.setText("");
-    txtSellingPrice.setText("");
-    txtStorageLocation.setText("");
+        setComboSingleValue(cmbCategory, "Select Category");
+        setComboSingleValue(cmbSupplierName, "Select Supplier");
+    }
 
-    txtDateStocked.setText("");
-    txtStockedBy.setText("");
-    txtRemarks.setText("");
+    // =========================
+    // SAVE (Stock In / Stock Out)
+    // =========================
+    private void saveStockEntry() {
+        String selectedProduct = (String) cmbProduct.getSelectedItem();
+        if (selectedProduct == null || selectedProduct.equals("Select Product")) {
+            JOptionPane.showMessageDialog(this, "Please select a product.");
+            return;
+        }
 
-    cmbCategory.setSelectedIndex(0);
-    cmbStockStatus.setSelectedIndex(0);
+        Integer productId = productMap.get(selectedProduct);
+        if (productId == null) {
+            JOptionPane.showMessageDialog(this, "Invalid product selection.");
+            return;
+        }
 
-    txtBarcode.requestFocus();
-}
+        String type = String.valueOf(jComboBox1.getSelectedItem()); // "Stock in" or "Stock Out"
+        String qtyStr = txtQuantityAdded.getText().trim();
+        String referenceNo = jTextField1.getText().trim(); // rename later if you want
+        String remarksOrReason = txtRemarks.getText().trim();
 
+        if (qtyStr.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter quantity.");
+            return;
+        }
 
-    /**
-     * This method is called from within the constructor to initialize the form.
-     * WARNING: Do NOT modify this code. The content of this method is always
-     * regenerated by the Form Editor.
-     */
-    @SuppressWarnings("unchecked")
+        int qty;
+        try {
+            qty = Integer.parseInt(qtyStr);
+            if (qty <= 0) {
+                JOptionPane.showMessageDialog(this, "Quantity must be greater than 0.");
+                return;
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Quantity must be a whole number.");
+            return;
+        }
+
+        // Requirement validations:
+        // Stock In -> Reference Number required
+        // Stock Out -> Reason required
+        boolean isStockIn = type.equalsIgnoreCase("Stock in");
+        boolean isStockOut = type.equalsIgnoreCase("Stock Out") || type.equalsIgnoreCase("Stock out");
+
+        if (isStockIn && referenceNo.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Reference Number is required for Stock In.");
+            return;
+        }
+        if (isStockOut && remarksOrReason.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Reason is required for Stock Out.");
+            return;
+        }
+
+        try {
+            boolean ok;
+
+            if (isStockIn) {
+                ok = StockDAO.stockIn(productId, qty, referenceNo, remarksOrReason);
+            } else {
+                // For Stock Out, reference can be optional; pass referenceNo anyway
+                ok = StockDAO.stockOut(productId, qty, referenceNo, remarksOrReason);
+            }
+
+            if (ok) {
+                JOptionPane.showMessageDialog(this, "Stock entry saved!");
+
+                if (inventory != null) {
+                    inventory.refreshTables();
+                }
+
+                clearFields();
+            } else {
+                JOptionPane.showMessageDialog(this, "Save failed. Please try again.");
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Save failed: " + e.getMessage());
+        }
+    }
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
         jTextField12 = new javax.swing.JTextField();
         jSeparator7 = new javax.swing.JSeparator();
-        jLabel1 = new javax.swing.JLabel();
-        jSeparator2 = new javax.swing.JSeparator();
-        jPanel2 = new javax.swing.JPanel();
-        jLabel10 = new javax.swing.JLabel();
-        jLabel11 = new javax.swing.JLabel();
-        jLabel12 = new javax.swing.JLabel();
-        jLabel13 = new javax.swing.JLabel();
-        jLabel14 = new javax.swing.JLabel();
-        jLabel15 = new javax.swing.JLabel();
-        jLabel16 = new javax.swing.JLabel();
-        txtManufactureDate = new javax.swing.JTextField();
-        txtExpirationDate = new javax.swing.JTextField();
-        txtQuantityAdded = new javax.swing.JTextField();
-        txtBatchNumber = new javax.swing.JTextField();
-        txtUnitCost = new javax.swing.JTextField();
-        txtSellingPrice = new javax.swing.JTextField();
-        txtStorageLocation = new javax.swing.JTextField();
-        jLabel18 = new javax.swing.JLabel();
-        cmbStockStatus = new javax.swing.JComboBox<>();
-        jLabel8 = new javax.swing.JLabel();
-        jSeparator4 = new javax.swing.JSeparator();
-        jSeparator8 = new javax.swing.JSeparator();
-        jPanel3 = new javax.swing.JPanel();
-        jLabel9 = new javax.swing.JLabel();
-        jLabel19 = new javax.swing.JLabel();
-        txtStockedBy = new javax.swing.JTextField();
-        txtDateStocked = new javax.swing.JTextField();
-        jLabel20 = new javax.swing.JLabel();
-        jScrollPane1 = new javax.swing.JScrollPane();
-        txtRemarks = new javax.swing.JTextArea();
-        jLabel21 = new javax.swing.JLabel();
-        jSeparator1 = new javax.swing.JSeparator();
-        jSeparator9 = new javax.swing.JSeparator();
-        jPanel4 = new javax.swing.JPanel();
-        jLabel17 = new javax.swing.JLabel();
-        btnSave = new javax.swing.JButton();
-        btnClear = new javax.swing.JButton();
-        btnView = new javax.swing.JButton();
-        btnExit = new javax.swing.JButton();
-        jSeparator5 = new javax.swing.JSeparator();
         jPanel5 = new javax.swing.JPanel();
         jLabel2 = new javax.swing.JLabel();
-        jLabel3 = new javax.swing.JLabel();
         jLabel4 = new javax.swing.JLabel();
-        txtBarcode = new javax.swing.JTextField();
-        txtProductId = new javax.swing.JTextField();
         txtProductName = new javax.swing.JTextField();
         cmbCategory = new javax.swing.JComboBox<>();
         jLabel5 = new javax.swing.JLabel();
-        txtSupplierName = new javax.swing.JTextField();
         jLabel6 = new javax.swing.JLabel();
+        cmbSupplierName = new javax.swing.JComboBox<>();
+        cmbProduct = new javax.swing.JComboBox<>();
+        jLabel1 = new javax.swing.JLabel();
+        jLabel3 = new javax.swing.JLabel();
+        jComboBox1 = new javax.swing.JComboBox<>();
+        jLabel12 = new javax.swing.JLabel();
+        txtQuantityAdded = new javax.swing.JTextField();
         jLabel7 = new javax.swing.JLabel();
-        jSeparator3 = new javax.swing.JSeparator();
-        jSeparator6 = new javax.swing.JSeparator();
+        lblDate = new javax.swing.JTextField();
+        jLabel8 = new javax.swing.JLabel();
+        jTextField1 = new javax.swing.JTextField();
+        jLabel19 = new javax.swing.JLabel();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        txtRemarks = new javax.swing.JTextArea();
+        btnSave = new javax.swing.JButton();
+        btnClear = new javax.swing.JButton();
+        btnExit = new javax.swing.JButton();
+        btnView = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowActivated(java.awt.event.WindowEvent evt) {
+                formWindowActivated(evt);
+            }
+        });
         getContentPane().setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
-
-        jLabel1.setFont(new java.awt.Font("Times New Roman", 1, 18)); // NOI18N
-        jLabel1.setText("POS - PRODUCT STOCKING MODULE");
-        getContentPane().add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(260, 10, -1, -1));
-        getContentPane().add(jSeparator2, new org.netbeans.lib.awtextra.AbsoluteConstraints(-5, 49, 830, 10));
-
-        jPanel2.setBackground(new java.awt.Color(94, 197, 168));
-        jPanel2.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
-
-        jLabel10.setText("Manufacturing Date:  ");
-        jPanel2.add(jLabel10, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 120, -1, -1));
-
-        jLabel11.setText("Expiration Date: ");
-        jPanel2.add(jLabel11, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 170, -1, -1));
-
-        jLabel12.setText("Quantity Added:  ");
-        jPanel2.add(jLabel12, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 220, -1, -1));
-
-        jLabel13.setText("Unit Cost: ");
-        jPanel2.add(jLabel13, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 70, -1, -1));
-
-        jLabel14.setText("Selling Price: ");
-        jPanel2.add(jLabel14, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 120, -1, -1));
-
-        jLabel15.setText("Stock Status: ");
-        jPanel2.add(jLabel15, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 220, -1, -1));
-
-        jLabel16.setText("Storage Location: ");
-        jPanel2.add(jLabel16, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 170, -1, -1));
-        jPanel2.add(txtManufactureDate, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 110, 220, 30));
-        jPanel2.add(txtExpirationDate, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 160, 220, 30));
-        jPanel2.add(txtQuantityAdded, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 210, 220, 30));
-        jPanel2.add(txtBatchNumber, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 60, 220, 30));
-        jPanel2.add(txtUnitCost, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 60, 230, 30));
-        jPanel2.add(txtSellingPrice, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 110, 230, 30));
-        jPanel2.add(txtStorageLocation, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 160, 230, 30));
-
-        jLabel18.setText("Batch Number: ");
-        jPanel2.add(jLabel18, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 70, -1, -1));
-
-        cmbStockStatus.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
-        jPanel2.add(cmbStockStatus, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 210, 230, 30));
-
-        jLabel8.setFont(new java.awt.Font("Times New Roman", 1, 18)); // NOI18N
-        jLabel8.setText("BATCH & STOCK DETAILS");
-        jPanel2.add(jLabel8, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 20, -1, -1));
-        jPanel2.add(jSeparator4, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 260, 770, 10));
-        jPanel2.add(jSeparator8, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 40, 230, 10));
-
-        getContentPane().add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 270, 780, 270));
-
-        jPanel3.setBackground(new java.awt.Color(94, 197, 168));
-        jPanel3.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
-
-        jLabel9.setText("Stocked by: ");
-        jPanel3.add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 140, -1, -1));
-
-        jLabel19.setText("Remaks: ");
-        jPanel3.add(jLabel19, new org.netbeans.lib.awtextra.AbsoluteConstraints(430, 80, -1, -1));
-        jPanel3.add(txtStockedBy, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 130, 220, 30));
-        jPanel3.add(txtDateStocked, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 70, 220, 30));
-
-        jLabel20.setText("Date Stocked: ");
-        jPanel3.add(jLabel20, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 80, -1, -1));
-
-        txtRemarks.setColumns(20);
-        txtRemarks.setRows(5);
-        jScrollPane1.setViewportView(txtRemarks);
-
-        jPanel3.add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 60, -1, 110));
-
-        jLabel21.setFont(new java.awt.Font("Times New Roman", 1, 18)); // NOI18N
-        jLabel21.setText("AUDIT INFORMATION");
-        jPanel3.add(jLabel21, new org.netbeans.lib.awtextra.AbsoluteConstraints(300, 10, -1, -1));
-        jPanel3.add(jSeparator1, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 190, 780, 10));
-        jPanel3.add(jSeparator9, new org.netbeans.lib.awtextra.AbsoluteConstraints(300, 30, 190, 10));
-
-        getContentPane().add(jPanel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 540, 780, 200));
-
-        jPanel4.setBackground(new java.awt.Color(94, 197, 168));
-        jPanel4.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
-
-        jLabel17.setFont(new java.awt.Font("Times New Roman", 1, 18)); // NOI18N
-        jLabel17.setText("SYSTEM CONTROLS");
-        jPanel4.add(jLabel17, new org.netbeans.lib.awtextra.AbsoluteConstraints(310, 0, -1, -1));
-
-        btnSave.setText("Save Stock Entry");
-        btnSave.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                btnSaveActionPerformed(evt);
-            }
-        });
-        jPanel4.add(btnSave, new org.netbeans.lib.awtextra.AbsoluteConstraints(190, 40, -1, -1));
-
-        btnClear.setText("Clear Fields");
-        jPanel4.add(btnClear, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 40, -1, -1));
-
-        btnView.setText("View Stock List");
-        jPanel4.add(btnView, new org.netbeans.lib.awtextra.AbsoluteConstraints(500, 40, -1, -1));
-
-        btnExit.setText("Exit / Back");
-        btnExit.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                btnExitActionPerformed(evt);
-            }
-        });
-        jPanel4.add(btnExit, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 70, 90, -1));
-        jPanel4.add(jSeparator5, new org.netbeans.lib.awtextra.AbsoluteConstraints(310, 20, 180, 10));
-
-        getContentPane().add(jPanel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 740, 780, 100));
 
         jPanel5.setBackground(new java.awt.Color(94, 197, 168));
         jPanel5.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
-        jLabel2.setText("Barcode: ");
-        jPanel5.add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(40, 60, -1, -1));
-
-        jLabel3.setText("Product ID: ");
-        jPanel5.add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(40, 110, -1, -1));
+        jLabel2.setText("Select Product:");
+        jPanel5.add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 60, -1, -1));
 
         jLabel4.setText("Product Name: ");
-        jPanel5.add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(40, 160, -1, -1));
-        jPanel5.add(txtBarcode, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 50, 210, 30));
-        jPanel5.add(txtProductId, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 100, 210, 30));
+        jPanel5.add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 110, -1, -1));
 
         txtProductName.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 txtProductNameActionPerformed(evt);
             }
         });
-        jPanel5.add(txtProductName, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 150, 210, 30));
+        jPanel5.add(txtProductName, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 100, 240, 30));
 
-        cmbCategory.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Beverages", "Snacks", "Canned Goods", "Rice & Grains", "Dairy", "Bread & Bakery", "Frozen", "Personal Care", "Household", "School Supplies", "Electronics" }));
+        cmbCategory.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Select Category" }));
         cmbCategory.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 cmbCategoryActionPerformed(evt);
@@ -262,39 +274,97 @@ public ProductStockingFrame(InventoryManagement inventory) {
 
         jLabel5.setText("Category: ");
         jPanel5.add(jLabel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 60, -1, -1));
-        jPanel5.add(txtSupplierName, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 100, 240, 30));
 
         jLabel6.setText("Supplier Name: ");
         jPanel5.add(jLabel6, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 110, -1, -1));
 
-        jLabel7.setFont(new java.awt.Font("Times New Roman", 1, 18)); // NOI18N
-        jLabel7.setText("PRODUCT INFORMATION");
-        jPanel5.add(jLabel7, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 10, -1, -1));
-        jPanel5.add(jSeparator3, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 200, 780, 10));
-        jPanel5.add(jSeparator6, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 30, 220, 10));
+        cmbSupplierName.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
+        jPanel5.add(cmbSupplierName, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 100, 240, 30));
 
-        getContentPane().add(jPanel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 60, 780, 210));
+        jPanel5.add(cmbProduct, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 50, 240, 30));
+
+        jLabel1.setFont(new java.awt.Font("Times New Roman", 1, 18)); // NOI18N
+        jLabel1.setText("POS - PRODUCT STOCKING MODULE");
+        jPanel5.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 10, -1, -1));
+
+        jLabel3.setText("Transaction Type:");
+        jPanel5.add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 160, -1, -1));
+
+        jComboBox1.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Stock in", "Stock Out" }));
+        jPanel5.add(jComboBox1, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 150, 240, 30));
+
+        jLabel12.setText("Quantity Added:  ");
+        jPanel5.add(jLabel12, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 210, -1, -1));
+        jPanel5.add(txtQuantityAdded, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 200, 240, 30));
+
+        jLabel7.setText("Date:");
+        jPanel5.add(jLabel7, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 160, -1, -1));
+        jPanel5.add(lblDate, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 150, 240, 30));
+
+        jLabel8.setText("Reference Number");
+        jPanel5.add(jLabel8, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 210, -1, -1));
+
+        jTextField1.setText("txtReferenceNo");
+        jPanel5.add(jTextField1, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 200, 240, 30));
+
+        jLabel19.setText("Remaks: ");
+        jPanel5.add(jLabel19, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 260, -1, -1));
+
+        txtRemarks.setColumns(20);
+        txtRemarks.setRows(5);
+        jScrollPane1.setViewportView(txtRemarks);
+
+        jPanel5.add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(160, 250, 240, 110));
+
+        btnSave.setText("Save Stock Entry");
+        btnSave.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnSaveActionPerformed(evt);
+            }
+        });
+        jPanel5.add(btnSave, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 380, -1, -1));
+
+        btnClear.setText("Clear Fields");
+        btnClear.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnClearActionPerformed(evt);
+            }
+        });
+        jPanel5.add(btnClear, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 380, -1, -1));
+
+        btnExit.setText("Exit / Back");
+        btnExit.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnExitActionPerformed(evt);
+            }
+        });
+        jPanel5.add(btnExit, new org.netbeans.lib.awtextra.AbsoluteConstraints(430, 380, 90, -1));
+
+        btnView.setText("View Stock List");
+        jPanel5.add(btnView, new org.netbeans.lib.awtextra.AbsoluteConstraints(560, 380, -1, -1));
+
+        getContentPane().add(jPanel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 820, 420));
 
         pack();
         setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
 
     private void cmbCategoryActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cmbCategoryActionPerformed
-        // TODO add your handling code here:
+    fillSelectedProductInfo();
     }//GEN-LAST:event_cmbCategoryActionPerformed
 
     private void btnExitActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnExitActionPerformed
- int confirm = JOptionPane.showConfirmDialog(
-        this,
-        "Are you sure you want to exit?",
-        "Exit",
-        JOptionPane.YES_NO_OPTION,
-        JOptionPane.WARNING_MESSAGE
-    );
+    int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to exit?",
+                "Exit",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
 
-    if (confirm == JOptionPane.YES_OPTION) {
-        this.dispose(); // ✅ just close popup
-    }
+        if (confirm == JOptionPane.YES_OPTION) {
+            this.dispose();
+        }
     }//GEN-LAST:event_btnExitActionPerformed
 
     private void txtProductNameActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtProductNameActionPerformed
@@ -302,74 +372,19 @@ public ProductStockingFrame(InventoryManagement inventory) {
     }//GEN-LAST:event_txtProductNameActionPerformed
 
     private void btnSaveActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSaveActionPerformed
-        String barcode = txtBarcode.getText().trim();
-    String productId = txtProductId.getText().trim();
-    String productName = txtProductName.getText().trim();
-    String category = cmbCategory.getSelectedItem().toString();
-    String supplierName = txtSupplierName.getText().trim();
-
-    String batchNo = txtBatchNumber.getText().trim();
-    String mfgDate = txtManufactureDate.getText().trim();   // YYYY-MM-DD
-    String expDate = txtExpirationDate.getText().trim();    // YYYY-MM-DD
-
-    String qtyStr = txtQuantityAdded.getText().trim();
-    String unitStr = txtUnitCost.getText().trim();
-    String sellStr = txtSellingPrice.getText().trim();
-
-    String storageLoc = txtStorageLocation.getText().trim();
-    String stockStatus = cmbStockStatus.getSelectedItem().toString();
-
-    String dateStocked = txtDateStocked.getText().trim();   // YYYY-MM-DD
-    String stockedBy = txtStockedBy.getText().trim();
-    String remarks = txtRemarks.getText().trim();
-
-    // simple validation
-    if (barcode.isEmpty() || productId.isEmpty() || productName.isEmpty() ||
-        batchNo.isEmpty() || mfgDate.isEmpty() || expDate.isEmpty() ||
-        qtyStr.isEmpty() || unitStr.isEmpty() || sellStr.isEmpty() ||
-        dateStocked.isEmpty() || stockedBy.isEmpty()) {
-        JOptionPane.showMessageDialog(this, "Please fill in required fields.");
-        return;
-    }
-
-    try {
-        int qty = Integer.parseInt(qtyStr);
-        double unitCost = Double.parseDouble(unitStr);
-        double sellingPrice = Double.parseDouble(sellStr);
-
-        StockDAO.addStockEntry(
-                barcode, productId, productName, category, supplierName,
-                batchNo, mfgDate, expDate, qty, unitCost, sellingPrice,
-                storageLoc, stockStatus,
-                dateStocked, stockedBy, remarks
-        );
-
-        JOptionPane.showMessageDialog(this, "Stock entry saved!");
-
-        // refresh inventory tables immediately
-        if (inventory != null) {
-            inventory.refreshTables();
-            inventory.setVisible(true);
-        }
-
-      
-
-    } catch (NumberFormatException e) {
-        JOptionPane.showMessageDialog(this, "Qty must be int, costs must be numbers.");
-    } catch (SQLException e) {
-        JOptionPane.showMessageDialog(this, "Save failed: " + e.getMessage());
-    } catch (IllegalArgumentException e) {
-        // this happens if Date.valueOf("...") is not YYYY-MM-DD
-        JOptionPane.showMessageDialog(this, "Date format must be YYYY-MM-DD");
-    }
-JOptionPane.showMessageDialog(this, "Stock entry saved!");
-
-if (inventory != null) {
-    inventory.refreshTables();
-}
-
-clearFields();
+    saveStockEntry();;
     }//GEN-LAST:event_btnSaveActionPerformed
+
+    private void formWindowActivated(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowActivated
+ if (!productsLoaded) {
+            loadProductsToCombo();
+            productsLoaded = true;
+        }
+    }//GEN-LAST:event_formWindowActivated
+
+    private void btnClearActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnClearActionPerformed
+    clearFields();
+    }//GEN-LAST:event_btnClearActionPerformed
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
@@ -378,56 +393,27 @@ clearFields();
     private javax.swing.JButton btnSave;
     private javax.swing.JButton btnView;
     private javax.swing.JComboBox<String> cmbCategory;
-    private javax.swing.JComboBox<String> cmbStockStatus;
+    private javax.swing.JComboBox<String> cmbProduct;
+    private javax.swing.JComboBox<String> cmbSupplierName;
+    private javax.swing.JComboBox<String> jComboBox1;
     private javax.swing.JLabel jLabel1;
-    private javax.swing.JLabel jLabel10;
-    private javax.swing.JLabel jLabel11;
     private javax.swing.JLabel jLabel12;
-    private javax.swing.JLabel jLabel13;
-    private javax.swing.JLabel jLabel14;
-    private javax.swing.JLabel jLabel15;
-    private javax.swing.JLabel jLabel16;
-    private javax.swing.JLabel jLabel17;
-    private javax.swing.JLabel jLabel18;
     private javax.swing.JLabel jLabel19;
     private javax.swing.JLabel jLabel2;
-    private javax.swing.JLabel jLabel20;
-    private javax.swing.JLabel jLabel21;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
     private javax.swing.JLabel jLabel7;
     private javax.swing.JLabel jLabel8;
-    private javax.swing.JLabel jLabel9;
-    private javax.swing.JPanel jPanel2;
-    private javax.swing.JPanel jPanel3;
-    private javax.swing.JPanel jPanel4;
     private javax.swing.JPanel jPanel5;
     private javax.swing.JScrollPane jScrollPane1;
-    private javax.swing.JSeparator jSeparator1;
-    private javax.swing.JSeparator jSeparator2;
-    private javax.swing.JSeparator jSeparator3;
-    private javax.swing.JSeparator jSeparator4;
-    private javax.swing.JSeparator jSeparator5;
-    private javax.swing.JSeparator jSeparator6;
     private javax.swing.JSeparator jSeparator7;
-    private javax.swing.JSeparator jSeparator8;
-    private javax.swing.JSeparator jSeparator9;
+    private javax.swing.JTextField jTextField1;
     private javax.swing.JTextField jTextField12;
-    private javax.swing.JTextField txtBarcode;
-    private javax.swing.JTextField txtBatchNumber;
-    private javax.swing.JTextField txtDateStocked;
-    private javax.swing.JTextField txtExpirationDate;
-    private javax.swing.JTextField txtManufactureDate;
-    private javax.swing.JTextField txtProductId;
+    private javax.swing.JTextField lblDate;
     private javax.swing.JTextField txtProductName;
     private javax.swing.JTextField txtQuantityAdded;
     private javax.swing.JTextArea txtRemarks;
-    private javax.swing.JTextField txtSellingPrice;
-    private javax.swing.JTextField txtStockedBy;
-    private javax.swing.JTextField txtStorageLocation;
-    private javax.swing.JTextField txtSupplierName;
-    private javax.swing.JTextField txtUnitCost;
     // End of variables declaration//GEN-END:variables
 }
