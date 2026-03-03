@@ -3,11 +3,8 @@ package sulibagakent.Screens;
 import sulibagakent.Screens.Gradients.POSGradient;
 
 import javax.swing.*;
-import javax.swing.border.*;
 import javax.swing.event.TableModelEvent;
 import javax.swing.table.DefaultTableModel;
-import java.awt.*;
-import java.awt.event.*;
 import java.awt.print.PrinterException;
 import java.sql.*;
 import java.text.DecimalFormat;
@@ -16,423 +13,115 @@ import java.util.Date;
 
 public class PointOfSales extends POSGradient {
 
-    // ===================== THEME =====================
-    private final Color BTN_MAIN = new Color(109, 213, 180);
-    private final Color BTN_HOVER = new Color(88, 194, 160);
-    private final Color BTN_DARK = new Color(55, 160, 130);
-    private final Color BTN_DANGER = new Color(231, 76, 60);
-    private final Color BTN_DANGER_HOVER = new Color(210, 60, 45);
-    private final Color BG_CARD = Color.WHITE;
-    private final Color BORDER = new Color(225, 225, 225);
-    private final Color TXT_MUTED = new Color(110, 110, 110);
-
     private final DecimalFormat df = new DecimalFormat("#,##0.00");
     private final SimpleDateFormat dtFmt = new SimpleDateFormat("MMM dd, yyyy  hh:mm:ss a");
 
-    // ===================== SESSION USER =====================
+    // session
     private int currentUserId = 0;
     private String currentUsername = "Cashier";
 
-    // ===================== UI COMPONENTS =====================
-    private JLabel lblDateTime;
-    private JLabel lblUser;
-    private JLabel lblInvoice;
-
-    private JTextField txtBarcode;
-    private JButton btnAddBarcode;
-
-    private JTable tblCart;
-    private DefaultTableModel cartModel;
-    private JButton btnRemove;
-    private JButton btnClear;
-
-    private JTextField txtSubtotal;
-    private JCheckBox chkVat;
-    private JTextField txtVat;
-    private JTextField txtDiscount;
-    private JTextField txtTotal;
-    private JTextField txtCash;
-    private JTextField txtChange;
-    private JComboBox<String> cmbPayment;
-
-    private JButton btnCheckout;
-    private JButton btnPrintReceipt;
-
-    private JTextArea txtReceipt;
-
-    // ===================== STATE =====================
+    // state
     private String invoiceNumber = "";
+    private boolean recalcLock = false;
+    private boolean checkoutLock = false;
+
+    // ====== IMPORTANT: hidden columns in cart table ======
+    // Visible columns in UI table:
+    // 0 Product, 1 Quantity, 2 Price, 3 Discount, 4 Subtotal
+    // Hidden columns (we will add programmatically):
+    // 5 product_id, 6 barcode, 7 stock
+    private static final int COL_PRODUCT = 0;
+    private static final int COL_QTY = 1;
+    private static final int COL_PRICE = 2;
+    private static final int COL_DISC = 3;
+    private static final int COL_SUB = 4;
+
+    private static final int COL_PID = 5;
+    private static final int COL_BARCODE = 6;
+    private static final int COL_STOCK = 7;
 
     public PointOfSales() {
-        initComponents();       // sets layout
-        buildPOSUI();           // responsive UI
-        startClock();
-        newInvoice();
-        wireEvents();
-        recalcTotals();
+        initComponents();
+        setupPOS();
     }
 
-    /**
-     * Call this after login
-     */
+    /** Call this after login */
     public void setLoggedInUser(int userId, String username) {
         this.currentUserId = userId;
         this.currentUsername = (username == null || username.isBlank()) ? "Cashier" : username;
-        if (lblUser != null) lblUser.setText("User: " + currentUsername);
+        lblUserType.setText(currentUsername);
         buildReceiptPreview();
     }
 
-    // ===================== BUILD UI (RESPONSIVE) =====================
-    private void buildPOSUI() {
-        setOpaque(false); // since POSGradient likely paints background
-        setLayout(new BorderLayout(12, 12));
-        setBorder(new EmptyBorder(16, 16, 16, 16));
+    // ===================== SETUP =====================
+    private void setupPOS() {
+        // make cash tendered editable (your design set it to false)
+        txtCashTendered.setEditable(true);
 
-        // ---------- TOP (info + scan) ----------
-        JPanel topContainer = new JPanel();
-        topContainer.setOpaque(false);
-        topContainer.setLayout(new BorderLayout(12, 12));
+        // receipt readonly
+        txtReceipt.setEditable(false);
 
-        topContainer.add(buildTopInfoCard(), BorderLayout.NORTH);
-        topContainer.add(buildScanCard(), BorderLayout.CENTER);
+        // default values
+        txtSubtotal.setText("0.00");
+        txtApplyVat.setText("0.00");
+        txtTotal.setText("0.00");
+        txtChange.setText("0.00");
+        txtCashTendered.setText("0");
 
-        add(topContainer, BorderLayout.NORTH);
+        // setup cart model with hidden cols
+        setupCartTableModel();
 
-        // ---------- CENTER (cart left, compute+receipt right) ----------
-        JPanel leftCart = buildCartCard();
-        JPanel rightSide = buildRightSide();
+        // events
+        wireEvents();
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftCart, rightSide);
-        split.setResizeWeight(0.68);         // left gets more space
-        split.setOneTouchExpandable(false);
-        split.setBorder(null);
-        split.setOpaque(false);
-
-        add(split, BorderLayout.CENTER);
+        // start clock + invoice
+        startClock();
+        newInvoice();
+        recalcTotals();
     }
 
-    private JPanel buildTopInfoCard() {
-        JPanel card = new JPanel(new GridBagLayout());
-        card.setBackground(new Color(250, 250, 250));
-        card.setBorder(new CompoundBorder(
-                new LineBorder(BORDER, 1, true),
-                new EmptyBorder(10, 12, 10, 12)
-        ));
-
-        GridBagConstraints c = new GridBagConstraints();
-        c.insets = new Insets(0, 0, 0, 10);
-        c.anchor = GridBagConstraints.WEST;
-
-        lblDateTime = new JLabel("Date/Time: --");
-        lblDateTime.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-
-        lblUser = new JLabel("User: " + currentUsername);
-        lblUser.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-
-        lblInvoice = new JLabel("Invoice: --");
-        lblInvoice.setFont(new Font("Yu Gothic UI Semibold", Font.BOLD, 12));
-
-        JButton btnNewInvoice = new JButton("New Invoice");
-        styleButton(btnNewInvoice, BTN_MAIN, BTN_HOVER);
-        btnNewInvoice.addActionListener(e -> {
-            if (cartModel != null && cartModel.getRowCount() > 0) {
-                int ans = JOptionPane.showConfirmDialog(
-                        this,
-                        "Cart is not empty. Clear and start new invoice?",
-                        "Confirm",
-                        JOptionPane.YES_NO_OPTION
-                );
-                if (ans != JOptionPane.YES_OPTION) return;
-                clearCart();
-            }
-            newInvoice();
-        });
-
-        // row layout
-        c.gridx = 0; c.gridy = 0; c.weightx = 0; c.fill = GridBagConstraints.NONE;
-        card.add(lblDateTime, c);
-
-        c.gridx = 1;
-        card.add(lblUser, c);
-
-        c.gridx = 2;
-        card.add(lblInvoice, c);
-
-        c.gridx = 3; c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL;
-        card.add(Box.createHorizontalGlue(), c);
-
-        c.gridx = 4; c.weightx = 0; c.fill = GridBagConstraints.NONE; c.insets = new Insets(0, 10, 0, 0);
-        card.add(btnNewInvoice, c);
-
-        return card;
-    }
-
-    private JPanel buildScanCard() {
-        JPanel card = new JPanel(new GridBagLayout());
-        card.setBackground(BG_CARD);
-        card.setBorder(new TitledBorder(new LineBorder(BORDER, 1, true), "Product Scan"));
-
-        GridBagConstraints c = new GridBagConstraints();
-        c.insets = new Insets(8, 10, 8, 10);
-        c.anchor = GridBagConstraints.WEST;
-
-        JLabel lblBarcode = new JLabel("Barcode:");
-        lblBarcode.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-
-        txtBarcode = new JTextField();
-        txtBarcode.setFont(new Font("Yu Gothic UI", Font.PLAIN, 15));
-
-        JLabel hint = new JLabel("Scanner-ready: scan/type then press ENTER");
-        hint.setFont(new Font("Yu Gothic UI", Font.ITALIC, 11));
-        hint.setForeground(TXT_MUTED);
-
-        btnAddBarcode = new JButton("Add");
-        styleButton(btnAddBarcode, BTN_MAIN, BTN_HOVER);
-
-        JButton btnFocus = new JButton("Focus Barcode");
-        styleButton(btnFocus, BTN_DARK, BTN_MAIN);
-        btnFocus.addActionListener(e -> txtBarcode.requestFocusInWindow());
-
-        // layout
-        c.gridx = 0; c.gridy = 0; c.weightx = 0;
-        card.add(lblBarcode, c);
-
-        c.gridx = 1; c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL;
-        card.add(txtBarcode, c);
-
-        c.gridx = 2; c.weightx = 0; c.fill = GridBagConstraints.NONE;
-        card.add(hint, c);
-
-        c.gridx = 3;
-        card.add(btnAddBarcode, c);
-
-        c.gridx = 4;
-        card.add(btnFocus, c);
-
-        return card;
-    }
-
-    private JPanel buildCartCard() {
-        JPanel card = new JPanel(new BorderLayout(10, 10));
-        card.setBackground(BG_CARD);
-        card.setBorder(new TitledBorder(new LineBorder(BORDER, 1, true), "Cart Items"));
-
-        cartModel = new DefaultTableModel(
-                new Object[]{"Product", "Qty", "Price", "Discount", "Subtotal", "product_id", "barcode", "stock"},
+    private void setupCartTableModel() {
+        DefaultTableModel model = new DefaultTableModel(
+                new Object[]{"Product", "Quantity", "Price", "Discount", "Subtotal", "product_id", "barcode", "stock"},
                 0
         ) {
             @Override public boolean isCellEditable(int row, int col) {
-                return col == 1 || col == 3; // Qty and Discount editable
+                return col == COL_QTY || col == COL_DISC; // allow qty + discount edit
             }
         };
 
-        tblCart = new JTable(cartModel);
-        tblCart.setRowHeight(28);
-        tblCart.getTableHeader().setFont(new Font("Yu Gothic UI Semibold", Font.BOLD, 12));
-        tblCart.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
+        tblCartItems.setModel(model);
 
-        // Hide technical columns
-        hideCol(tblCart, 5);
-        hideCol(tblCart, 6);
-        hideCol(tblCart, 7);
+        // hide technical columns
+        hideCol(COL_PID);
+        hideCol(COL_BARCODE);
+        hideCol(COL_STOCK);
 
-        card.add(new JScrollPane(tblCart), BorderLayout.CENTER);
-
-        JPanel btnBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
-        btnBar.setBackground(BG_CARD);
-
-        btnRemove = new JButton("Remove Selected");
-        styleButton(btnRemove, BTN_DARK, BTN_MAIN);
-
-        btnClear = new JButton("Clear Cart");
-        styleButton(btnClear, BTN_DANGER, BTN_DANGER_HOVER);
-
-        btnBar.add(btnRemove);
-        btnBar.add(btnClear);
-
-        card.add(btnBar, BorderLayout.SOUTH);
-        return card;
+        tblCartItems.setRowHeight(26);
     }
 
-    private JPanel buildRightSide() {
-        JPanel right = new JPanel();
-        right.setOpaque(false);
-        right.setLayout(new GridBagLayout());
-
-        GridBagConstraints c = new GridBagConstraints();
-        c.insets = new Insets(0, 0, 12, 0);
-        c.gridx = 0;
-        c.fill = GridBagConstraints.BOTH;
-        c.weightx = 1;
-
-        JPanel compute = buildComputeCard();
-        JPanel receipt = buildReceiptCard();
-
-        c.gridy = 0;
-        c.weighty = 0.62;
-        right.add(compute, c);
-
-        c.gridy = 1;
-        c.weighty = 0.38;
-        c.insets = new Insets(0, 0, 0, 0);
-        right.add(receipt, c);
-
-        return right;
+    private void hideCol(int index) {
+        tblCartItems.getColumnModel().getColumn(index).setMinWidth(0);
+        tblCartItems.getColumnModel().getColumn(index).setMaxWidth(0);
+        tblCartItems.getColumnModel().getColumn(index).setWidth(0);
     }
 
-    private JPanel buildComputeCard() {
-        JPanel card = new JPanel(new GridBagLayout());
-        card.setBackground(BG_CARD);
-        card.setBorder(new TitledBorder(new LineBorder(BORDER, 1, true), "Computation / Payment"));
-
-        GridBagConstraints c = new GridBagConstraints();
-        c.insets = new Insets(6, 10, 6, 10);
-        c.anchor = GridBagConstraints.WEST;
-        c.fill = GridBagConstraints.HORIZONTAL;
-
-        txtSubtotal = makeReadOnly("0.00");
-        chkVat = new JCheckBox("Apply VAT (12%)");
-        chkVat.setBackground(BG_CARD);
-        chkVat.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-        txtVat = makeReadOnly("0.00");
-
-        txtDiscount = new JTextField("0");
-        txtDiscount.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-
-        txtTotal = makeReadOnly("0.00");
-
-        cmbPayment = new JComboBox<>(new String[]{"CASH", "GCASH / E-WALLET (SIM)", "CARD (SIM)"});
-        cmbPayment.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-
-        txtCash = new JTextField("0");
-        txtCash.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-
-        txtChange = makeReadOnly("0.00");
-
-        // row helper
-        int row = 0;
-
-        addRow(card, c, row++, "Subtotal:", txtSubtotal);
-        // VAT row (checkbox + field)
-        c.gridy = row; c.gridx = 0; c.weightx = 0.6;
-        card.add(chkVat, c);
-        c.gridx = 1; c.weightx = 0.4;
-        card.add(txtVat, c);
-        row++;
-
-        addRow(card, c, row++, "Discount:", txtDiscount);
-        addRow(card, c, row++, "Total:", txtTotal);
-
-        // payment row
-        c.gridy = row; c.gridx = 0; c.weightx = 0;
-        card.add(makeLabel("Payment:"), c);
-        c.gridx = 1; c.weightx = 1;
-        card.add(cmbPayment, c);
-        row++;
-
-        addRow(card, c, row++, "Cash Tendered:", txtCash);
-        addRow(card, c, row++, "Change:", txtChange);
-
-        // buttons row
-        btnCheckout = new JButton("Checkout");
-        styleButton(btnCheckout, BTN_MAIN, BTN_HOVER);
-
-        btnPrintReceipt = new JButton("Print Receipt");
-        styleButton(btnPrintReceipt, BTN_DARK, BTN_MAIN);
-
-        JPanel btnRow = new JPanel(new GridLayout(1, 2, 10, 0));
-        btnRow.setBackground(BG_CARD);
-        btnRow.add(btnCheckout);
-        btnRow.add(btnPrintReceipt);
-
-        c.gridy = row; c.gridx = 0; c.gridwidth = 2;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        card.add(btnRow, c);
-
-        return card;
-    }
-
-    private JPanel buildReceiptCard() {
-        JPanel card = new JPanel(new BorderLayout(10, 10));
-        card.setBackground(BG_CARD);
-        card.setBorder(new TitledBorder(new LineBorder(BORDER, 1, true), "Receipt Preview"));
-
-        txtReceipt = new JTextArea();
-        txtReceipt.setFont(new Font("Consolas", Font.PLAIN, 11));
-        txtReceipt.setEditable(false);
-
-        card.add(new JScrollPane(txtReceipt), BorderLayout.CENTER);
-        buildReceiptPreview();
-
-        return card;
-    }
-
-    private void addRow(JPanel parent, GridBagConstraints c, int row, String label, JComponent field) {
-        c.gridy = row;
-
-        c.gridx = 0; c.weightx = 0;
-        parent.add(makeLabel(label), c);
-
-        c.gridx = 1; c.weightx = 1;
-        parent.add(field, c);
-    }
-
-    private JLabel makeLabel(String text) {
-        JLabel lbl = new JLabel(text);
-        lbl.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-        return lbl;
-    }
-
-    private JTextField makeReadOnly(String v) {
-        JTextField t = new JTextField(v);
-        t.setEditable(false);
-        t.setBackground(new Color(245, 245, 245));
-        t.setFont(new Font("Yu Gothic UI", Font.PLAIN, 12));
-        return t;
-    }
-
-    private void hideCol(JTable table, int index) {
-        table.getColumnModel().getColumn(index).setMinWidth(0);
-        table.getColumnModel().getColumn(index).setMaxWidth(0);
-        table.getColumnModel().getColumn(index).setWidth(0);
-    }
-
-    // ===================== EVENTS =====================
     private void wireEvents() {
+        // add by barcode
         txtBarcode.addActionListener(e -> addByBarcode());
-        btnAddBarcode.addActionListener(e -> addByBarcode());
+        btnAdd.addActionListener(e -> addByBarcode());
+        btnFocusBarcode.addActionListener(e -> txtBarcode.requestFocusInWindow());
 
-        btnRemove.addActionListener(e -> removeSelected());
-        btnClear.addActionListener(e -> {
-            int ans = JOptionPane.showConfirmDialog(this, "Clear cart?", "Confirm", JOptionPane.YES_NO_OPTION);
-            if (ans == JOptionPane.YES_OPTION) clearCart();
-        });
+        // VAT toggle
+        checkboxVAT.addActionListener(e -> recalcTotals());
 
-        cartModel.addTableModelListener((TableModelEvent e) -> {
-    if (recalcLock) return;
+        // cash tendered typing
+        txtCashTendered.addCaretListener(e -> recalcTotals());
 
-    int col = e.getColumn();
-    // only respond to Qty(1) or Discount(3) changes, or inserts/deletes
-    if (e.getType() == TableModelEvent.INSERT || e.getType() == TableModelEvent.DELETE) {
-        recalcTotals();
-        return;
-    }
-    if (col == 1 || col == 3) {
-        recalcTotals();
-    }
-});
+        // checkout
+        btnCheckOut.addActionListener(e -> checkout());
 
-        txtDiscount.addKeyListener(new KeyAdapter() {
-            @Override public void keyReleased(KeyEvent e) { recalcTotals(); }
-        });
-        txtCash.addKeyListener(new KeyAdapter() {
-            @Override public void keyReleased(KeyEvent e) { recalcTotals(); }
-        });
-
-        chkVat.addActionListener(e -> recalcTotals());
-
-        btnCheckout.addActionListener(e -> checkout());
-
+        // print
         btnPrintReceipt.addActionListener(e -> {
             try {
                 txtReceipt.print();
@@ -440,38 +129,62 @@ public class PointOfSales extends POSGradient {
                 JOptionPane.showMessageDialog(this, "Print error: " + ex.getMessage());
             }
         });
+
+        // table edit listener (Qty/Discount)
+        DefaultTableModel m = (DefaultTableModel) tblCartItems.getModel();
+        m.addTableModelListener((TableModelEvent e) -> {
+            if (recalcLock) return;
+            if (e.getType() != TableModelEvent.UPDATE) return;
+
+            int row = e.getFirstRow();
+            int col = e.getColumn();
+
+            if (row < 0) return;
+
+            // enforce stock limit on qty
+            if (col == COL_QTY) {
+                int stock = toInt(m.getValueAt(row, COL_STOCK), 0);
+                String name = String.valueOf(m.getValueAt(row, COL_PRODUCT));
+                int qty = toInt(m.getValueAt(row, COL_QTY), 1);
+
+                int clamped = clampQty(qty, stock);
+                if (clamped == 0) {
+                    JOptionPane.showMessageDialog(this, "Out of stock: " + name);
+                    m.removeRow(row);
+                    recalcTotals();
+                    return;
+                }
+                if (clamped != qty) {
+                    m.setValueAt(clamped, row, COL_QTY);
+                    JOptionPane.showMessageDialog(this,
+                            "Quantity adjusted (stock limit)\nItem: " + name + "\nAvailable: " + stock);
+                    return;
+                }
+            }
+
+            // discount cannot be negative
+            if (col == COL_DISC) {
+                double disc = Math.max(0, toDouble(m.getValueAt(row, COL_DISC), 0));
+                m.setValueAt(df.format(disc), row, COL_DISC);
+            }
+
+            recalcTotals();
+        });
     }
 
     // ===================== CLOCK / INVOICE =====================
     private void startClock() {
-        Timer t = new Timer(1000, e -> {
-            if (lblDateTime != null) lblDateTime.setText("Date/Time: " + dtFmt.format(new Date()));
-        });
+        Timer t = new Timer(1000, e -> lblDateTime.setText(dtFmt.format(new Date())));
         t.start();
     }
 
-private void newInvoice() {
-    do {
+    private void newInvoice() {
         invoiceNumber = "INV-" + new SimpleDateFormat("yyyyMMdd-HHmmssSSS").format(new Date());
-    } while (invoiceExists(invoiceNumber));
-
-    if (lblInvoice != null) lblInvoice.setText("Invoice: " + invoiceNumber);
-    buildReceiptPreview();
-}
-private boolean invoiceExists(String invoice) {
-    String sql = "SELECT 1 FROM sales WHERE invoice_number = ? LIMIT 1";
-    try (Connection con = getConnection();
-         PreparedStatement ps = con.prepareStatement(sql)) {
-        ps.setString(1, invoice);
-        try (ResultSet rs = ps.executeQuery()) {
-            return rs.next();
-        }
-    } catch (SQLException e) {
-        return false; // if error, just assume not exists
+        lblInvoice.setText(invoiceNumber);
+        buildReceiptPreview();
     }
-}
 
-    // ===================== POS LOGIC =====================
+    // ===================== CART: ADD BY BARCODE =====================
     private void addByBarcode() {
         String barcode = txtBarcode.getText().trim();
         if (barcode.isEmpty()) return;
@@ -480,39 +193,37 @@ private boolean invoiceExists(String invoice) {
             Product p = fetchProductByBarcode(barcode);
 
             if (p == null) {
-                JOptionPane.showMessageDialog(this, "Product not found for barcode: " + barcode,
-                        "Not Found", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Product not found: " + barcode);
                 txtBarcode.selectAll();
                 return;
             }
 
             if (p.stockQty <= 0) {
-                JOptionPane.showMessageDialog(this, "Out of stock: " + p.name,
-                        "Stock Warning", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Out of stock: " + p.name);
                 txtBarcode.selectAll();
                 return;
             }
 
-            int row = findCartRowByProductId(p.productId);
+            DefaultTableModel m = (DefaultTableModel) tblCartItems.getModel();
+            int row = findRowByProductId(p.productId);
+
             if (row >= 0) {
-                int currentQty = toInt(cartModel.getValueAt(row, 1), 1);
+                int currentQty = toInt(m.getValueAt(row, COL_QTY), 1);
                 int newQty = currentQty + 1;
 
                 if (newQty > p.stockQty) {
                     JOptionPane.showMessageDialog(this,
-                            "Insufficient stock for " + p.name + "\nAvailable: " + p.stockQty,
-                            "Stock Warning", JOptionPane.WARNING_MESSAGE);
+                            "Insufficient stock for " + p.name + "\nAvailable: " + p.stockQty);
                     return;
                 }
-
-                cartModel.setValueAt(newQty, row, 1);
+                m.setValueAt(newQty, row, COL_QTY);
             } else {
                 int qty = 1;
                 double price = p.sellingPrice;
                 double disc = 0.00;
                 double sub = (qty * price) - disc;
 
-                cartModel.addRow(new Object[]{
+                m.addRow(new Object[]{
                         p.name,
                         qty,
                         df.format(price),
@@ -529,186 +240,178 @@ private boolean invoiceExists(String invoice) {
             recalcTotals();
 
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error adding item: " + ex.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Add error: " + ex.getMessage());
         }
     }
 
-    private int findCartRowByProductId(int productId) {
-        for (int i = 0; i < cartModel.getRowCount(); i++) {
-            int pid = toInt(cartModel.getValueAt(i, 5), -1);
+    private int findRowByProductId(int productId) {
+        DefaultTableModel m = (DefaultTableModel) tblCartItems.getModel();
+        for (int i = 0; i < m.getRowCount(); i++) {
+            int pid = toInt(m.getValueAt(i, COL_PID), -1);
             if (pid == productId) return i;
         }
         return -1;
     }
 
-    private void removeSelected() {
-        int viewRow = tblCart.getSelectedRow();
-        if (viewRow < 0) {
-            JOptionPane.showMessageDialog(this, "Select an item to remove.");
-            return;
-        }
-        int modelRow = tblCart.convertRowIndexToModel(viewRow);
-        cartModel.removeRow(modelRow);
-        recalcTotals();
-    }
-
-    private void clearCart() {
-        cartModel.setRowCount(0);
-        txtDiscount.setText("0");
-        txtCash.setText("0");
-        recalcTotals();
-        buildReceiptPreview();
-    }
-private boolean recalcLock = false;
-private void recalcTotals() {
-    if (recalcLock) return;           // ✅ stop recursion
-    recalcLock = true;
-
-    try {
-        double subtotal = 0;
-
-        for (int i = 0; i < cartModel.getRowCount(); i++) {
-
-            // Qty
-            int qty = Math.max(1, toInt(cartModel.getValueAt(i, 1), 1));
-            // only write if changed (less events)
-            if (!String.valueOf(cartModel.getValueAt(i, 1)).equals(String.valueOf(qty))) {
-                cartModel.setValueAt(qty, i, 1);
-            }
-
-            double price = toDouble(cartModel.getValueAt(i, 2), 0);
-            double disc = Math.max(0, toDouble(cartModel.getValueAt(i, 3), 0));
-
-            double lineSub = (qty * price) - disc;
-            if (lineSub < 0) lineSub = 0;
-
-            String newLineSub = df.format(lineSub);
-            if (!String.valueOf(cartModel.getValueAt(i, 4)).equals(newLineSub)) {
-                cartModel.setValueAt(newLineSub, i, 4);
-            }
-
-            subtotal += lineSub;
-        }
-
-        double vat = chkVat.isSelected() ? subtotal * 0.12 : 0.0;
-        double discount = Math.max(0, parseSafeDouble(txtDiscount.getText()));
-
-        double total = (subtotal + vat) - discount;
-        if (total < 0) total = 0;
-
-        double cash = Math.max(0, parseSafeDouble(txtCash.getText()));
-        double change = cash - total;
-        if (change < 0) change = 0;
-
-        txtSubtotal.setText(df.format(subtotal));
-        txtVat.setText(df.format(vat));
-        txtTotal.setText(df.format(total));
-        txtChange.setText(df.format(change));
-
-        buildReceiptPreview();
-
-    } finally {
-        recalcLock = false;           // ✅ always unlock
-    }
-}
-
-    private void checkout() {
-        if (cartModel.getRowCount() == 0) {
-            JOptionPane.showMessageDialog(this, "Cart is empty. Add items first.",
-                    "Checkout Blocked", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
+    // ===================== TOTALS =====================
+    private void recalcTotals() {
+        if (recalcLock) return;
+        recalcLock = true;
 
         try {
-            // Validate stock first
-            for (int i = 0; i < cartModel.getRowCount(); i++) {
-                int productId = toInt(cartModel.getValueAt(i, 5), 0);
-                int qty = toInt(cartModel.getValueAt(i, 1), 1);
+            DefaultTableModel m = (DefaultTableModel) tblCartItems.getModel();
 
+            double subtotal = 0;
+
+            for (int i = 0; i < m.getRowCount(); i++) {
+                int stock = toInt(m.getValueAt(i, COL_STOCK), 0);
+
+                int qty = toInt(m.getValueAt(i, COL_QTY), 1);
+                int clampedQty = clampQty(qty, stock);
+                if (clampedQty == 0) {
+                    m.removeRow(i);
+                    i--;
+                    continue;
+                }
+                if (clampedQty != qty) m.setValueAt(clampedQty, i, COL_QTY);
+
+                double price = toDouble(m.getValueAt(i, COL_PRICE), 0);
+                double disc = Math.max(0, toDouble(m.getValueAt(i, COL_DISC), 0));
+
+                double lineSub = (clampedQty * price) - disc;
+                if (lineSub < 0) lineSub = 0;
+
+                m.setValueAt(df.format(disc), i, COL_DISC);
+                m.setValueAt(df.format(lineSub), i, COL_SUB);
+
+                subtotal += lineSub;
+            }
+
+            double vat = checkboxVAT.isSelected() ? subtotal * 0.12 : 0.0;
+            double total = subtotal + vat;
+
+            double cash = Math.max(0, parseSafeDouble(txtCashTendered.getText()));
+            double change = cash - total;
+            if (change < 0) change = 0;
+
+            txtSubtotal.setText(df.format(subtotal));
+            txtApplyVat.setText(df.format(vat));
+            txtTotal.setText(df.format(total));
+            txtChange.setText(df.format(change));
+
+            buildReceiptPreview();
+
+        } finally {
+            recalcLock = false;
+        }
+    }
+
+    // ===================== CHECKOUT =====================
+    private void checkout() {
+        if (checkoutLock) return;
+        checkoutLock = true;
+        btnCheckOut.setEnabled(false);
+
+        try {
+            DefaultTableModel m = (DefaultTableModel) tblCartItems.getModel();
+            if (m.getRowCount() == 0) {
+                JOptionPane.showMessageDialog(this, "Cart is empty.");
+                return;
+            }
+
+            double total = parseSafeDouble(txtTotal.getText());
+            double cash = parseSafeDouble(txtCashTendered.getText());
+            String payment = String.valueOf(cmbPayment.getSelectedItem());
+
+            // only require cash if CASH payment
+            if (payment.equalsIgnoreCase("CASH") && cash < total) {
+                JOptionPane.showMessageDialog(this, "Insufficient cash.");
+                return;
+            }
+
+            // fresh stock check
+            for (int i = 0; i < m.getRowCount(); i++) {
+                int productId = toInt(m.getValueAt(i, COL_PID), 0);
+                int qty = toInt(m.getValueAt(i, COL_QTY), 1);
                 int currentStock = fetchStockByProductId(productId);
                 if (qty > currentStock) {
                     JOptionPane.showMessageDialog(this,
-                            "Insufficient stock for item in cart.\nNeeded: " + qty + "\nAvailable: " + currentStock,
-                            "Stock Warning", JOptionPane.WARNING_MESSAGE);
+                            "Insufficient stock for item.\nNeeded: " + qty + "\nAvailable: " + currentStock);
                     return;
                 }
             }
 
             double subtotal = parseSafeDouble(txtSubtotal.getText());
-            double vat = parseSafeDouble(txtVat.getText());
-            double discount = parseSafeDouble(txtDiscount.getText());
-            double total = parseSafeDouble(txtTotal.getText());
-            double cash = parseSafeDouble(txtCash.getText());
+            double vat = parseSafeDouble(txtApplyVat.getText());
             double change = parseSafeDouble(txtChange.getText());
 
-            String paymentMethod = String.valueOf(cmbPayment.getSelectedItem());
-
-            if (paymentMethod.startsWith("CASH") && cash < total) {
-                JOptionPane.showMessageDialog(this,
-                        "Insufficient cash.\nTotal: " + df.format(total),
-                        "Payment Error", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
             try (Connection con = getConnection()) {
-                if (con == null) {
-                    JOptionPane.showMessageDialog(this, "Database connection is null.");
-                    return;
-                }
-
                 con.setAutoCommit(false);
                 try {
-                    int saleId = insertSale(con, invoiceNumber, currentUserId, subtotal, vat, discount, total,
-                            paymentMethod, cash, change);
+                    // retry invoice if duplicate key
+                    int saleId = -1;
+                    for (int attempts = 0; attempts < 3; attempts++) {
+                        try {
+                            saleId = insertSale(con, invoiceNumber, currentUserId, subtotal, vat, 0, total,
+                                    payment, cash, change);
+                            break;
+                        } catch (SQLIntegrityConstraintViolationException dup) {
+                            newInvoice();
+                        }
+                    }
+                    if (saleId <= 0) throw new SQLException("Failed to create sale.");
 
-                    for (int i = 0; i < cartModel.getRowCount(); i++) {
-                        int productId = toInt(cartModel.getValueAt(i, 5), 0);
-                        int qty = toInt(cartModel.getValueAt(i, 1), 1);
-                        double price = toDouble(cartModel.getValueAt(i, 2), 0);
-                        double lineDisc = toDouble(cartModel.getValueAt(i, 3), 0);
-                        double lineSub = toDouble(cartModel.getValueAt(i, 4), 0);
+                    // insert items + deduct stock + inventory transaction
+                    for (int i = 0; i < m.getRowCount(); i++) {
+                        int productId = toInt(m.getValueAt(i, COL_PID), 0);
+                        int qty = toInt(m.getValueAt(i, COL_QTY), 1);
+                        double price = toDouble(m.getValueAt(i, COL_PRICE), 0);
+                        double disc = toDouble(m.getValueAt(i, COL_DISC), 0);
+                        double lineSub = toDouble(m.getValueAt(i, COL_SUB), 0);
 
-                        insertSaleItem(con, saleId, productId, qty, price, lineDisc, lineSub);
+                        insertSaleItem(con, saleId, productId, qty, price, disc, lineSub);
 
                         if (!deductStock(con, productId, qty)) {
                             throw new SQLException("Stock update failed for product_id: " + productId);
                         }
 
-                        insertInventoryTransaction(con, productId, "Stock Out", qty, invoiceNumber, "Sold via POS");
+                        insertInventoryTransaction(con, productId, "Sale", qty, invoiceNumber, "Sold via POS");
                     }
 
                     insertTransactionsLog(con, currentUserId, "SALE",
-                            "Completed sale: " + invoiceNumber + " | Total: " + df.format(total));
+                            "Completed sale: " + invoiceNumber + " Total: " + df.format(total));
 
                     con.commit();
 
-                    JOptionPane.showMessageDialog(this,
-                            "Payment successful!\nInvoice: " + invoiceNumber,
-                            "Success", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "Payment successful!\nInvoice: " + invoiceNumber);
 
-                    clearCart();
+                    // clear cart and new invoice
+                    m.setRowCount(0);
+                    txtCashTendered.setText("0");
+                    checkboxVAT.setSelected(false);
                     newInvoice();
+                    recalcTotals();
                     txtBarcode.requestFocusInWindow();
 
                 } catch (Exception ex) {
                     con.rollback();
-                    JOptionPane.showMessageDialog(this, "Checkout failed: " + ex.getMessage(),
-                            "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "Checkout failed: " + ex.getMessage());
                 } finally {
                     con.setAutoCommit(true);
                 }
             }
 
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Checkout error: " + ex.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Checkout error: " + ex.getMessage());
+        } finally {
+            checkoutLock = false;
+            btnCheckOut.setEnabled(true);
         }
     }
 
     // ===================== RECEIPT =====================
     private void buildReceiptPreview() {
-        if (txtReceipt == null) return;
+        DefaultTableModel m = (DefaultTableModel) tblCartItems.getModel();
 
         StringBuilder sb = new StringBuilder();
         sb.append("SULIBAGAKENT POS\n");
@@ -717,39 +420,35 @@ private void recalcTotals() {
         sb.append("Date: ").append(dtFmt.format(new Date())).append("\n");
         sb.append("----------------------------------------\n");
 
-        if (cartModel != null) {
-            for (int i = 0; i < cartModel.getRowCount(); i++) {
-                String name = String.valueOf(cartModel.getValueAt(i, 0));
-                int qty = toInt(cartModel.getValueAt(i, 1), 1);
-                double lineSub = toDouble(cartModel.getValueAt(i, 4), 0);
+        for (int i = 0; i < m.getRowCount(); i++) {
+            String name = String.valueOf(m.getValueAt(i, COL_PRODUCT));
+            int qty = toInt(m.getValueAt(i, COL_QTY), 1);
+            String price = String.valueOf(m.getValueAt(i, COL_PRICE));
+            String sub = String.valueOf(m.getValueAt(i, COL_SUB));
 
-                sb.append(name).append("\n");
-                sb.append("  ").append(qty).append(" x ").append(cartModel.getValueAt(i, 2))
-                        .append("  = ").append(df.format(lineSub)).append("\n");
-            }
+            sb.append(name).append("\n");
+            sb.append("  ").append(qty).append(" x ").append(price).append(" = ").append(sub).append("\n");
         }
 
         sb.append("----------------------------------------\n");
-        sb.append("Subtotal: ").append(txtSubtotal != null ? txtSubtotal.getText() : "0.00").append("\n");
-        sb.append("VAT:      ").append(txtVat != null ? txtVat.getText() : "0.00").append("\n");
-        sb.append("Discount: ").append(txtDiscount != null ? txtDiscount.getText() : "0").append("\n");
-        sb.append("TOTAL:    ").append(txtTotal != null ? txtTotal.getText() : "0.00").append("\n");
-        sb.append("Payment:  ").append(cmbPayment != null ? cmbPayment.getSelectedItem() : "CASH").append("\n");
-        sb.append("Cash:     ").append(txtCash != null ? txtCash.getText() : "0").append("\n");
-        sb.append("Change:   ").append(txtChange != null ? txtChange.getText() : "0.00").append("\n");
+        sb.append("Subtotal: ").append(txtSubtotal.getText()).append("\n");
+        sb.append("VAT:      ").append(txtApplyVat.getText()).append("\n");
+        sb.append("TOTAL:    ").append(txtTotal.getText()).append("\n");
+        sb.append("Payment:  ").append(cmbPayment.getSelectedItem()).append("\n");
+        sb.append("Cash:     ").append(txtCashTendered.getText()).append("\n");
+        sb.append("Change:   ").append(txtChange.getText()).append("\n");
         sb.append("\nThank you!\n");
 
         txtReceipt.setText(sb.toString());
     }
 
-    // ===================== DB: PRODUCTS =====================
+    // ===================== DB =====================
     private Product fetchProductByBarcode(String barcode) throws SQLException {
         String sql = "SELECT product_id, barcode, name, selling_price, stock_quantity " +
                 "FROM products WHERE barcode = ? LIMIT 1";
 
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-
             ps.setString(1, barcode);
 
             try (ResultSet rs = ps.executeQuery()) {
@@ -770,7 +469,6 @@ private void recalcTotals() {
         String sql = "SELECT stock_quantity FROM products WHERE product_id = ? LIMIT 1";
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-
             ps.setInt(1, productId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return 0;
@@ -790,7 +488,6 @@ private void recalcTotals() {
         }
     }
 
-    // ===================== DB: SALES =====================
     private int insertSale(Connection con,
                           String invoice,
                           int userId,
@@ -849,7 +546,6 @@ private void recalcTotals() {
         }
     }
 
-    // ===================== DB: INVENTORY TRANSACTIONS =====================
     private void insertInventoryTransaction(Connection con,
                                             int productId,
                                             String type,
@@ -871,7 +567,6 @@ private void recalcTotals() {
         }
     }
 
-    // ===================== DB: ACTION LOG =====================
     private void insertTransactionsLog(Connection con,
                                        int userId,
                                        String action,
@@ -888,25 +583,16 @@ private void recalcTotals() {
         }
     }
 
-    // ===================== DB CONNECTION =====================
     private Connection getConnection() throws SQLException {
-        // Use YOUR existing connection class
         return DbConnection.DBConnection.getConnection();
     }
 
     // ===================== HELPERS =====================
-    private void styleButton(JButton btn, Color base, Color hover) {
-        btn.setBackground(base);
-        btn.setForeground(Color.WHITE);
-        btn.setFocusPainted(false);
-        btn.setBorder(new LineBorder(base.darker(), 1, true));
-        btn.setFont(new Font("Yu Gothic UI Semibold", Font.BOLD, 12));
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        btn.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { btn.setBackground(hover); }
-            @Override public void mouseExited(MouseEvent e) { btn.setBackground(base); }
-        });
+    private int clampQty(int desiredQty, int availableStock) {
+        if (availableStock <= 0) return 0;
+        if (desiredQty < 1) return 1;
+        if (desiredQty > availableStock) return availableStock;
+        return desiredQty;
     }
 
     private int toInt(Object v, int def) {
@@ -935,7 +621,6 @@ private void recalcTotals() {
         }
     }
 
-    // ===================== INNER MODEL =====================
     private static class Product {
         int productId;
         String barcode;
@@ -943,15 +628,302 @@ private void recalcTotals() {
         double sellingPrice;
         int stockQty;
     }
-
-
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
+        jPanel1 = new javax.swing.JPanel();
+        jLabel1 = new javax.swing.JLabel();
+        jLabel2 = new javax.swing.JLabel();
+        lblDateTime = new javax.swing.JLabel();
+        lblUserType = new javax.swing.JLabel();
+        jLabel5 = new javax.swing.JLabel();
+        lblInvoice = new javax.swing.JLabel();
+        jPanel2 = new javax.swing.JPanel();
+        jLabel8 = new javax.swing.JLabel();
+        txtBarcode = new javax.swing.JTextField();
+        jLabel9 = new javax.swing.JLabel();
+        btnAdd = new javax.swing.JButton();
+        btnFocusBarcode = new javax.swing.JButton();
+        jLabel7 = new javax.swing.JLabel();
+        jPanel3 = new javax.swing.JPanel();
+        jScrollPane2 = new javax.swing.JScrollPane();
+        tblCartItems = new javax.swing.JTable();
+        jLabel11 = new javax.swing.JLabel();
+        jPanel4 = new javax.swing.JPanel();
+        btnCheckOut = new javax.swing.JButton();
+        btnPrintReceipt = new javax.swing.JButton();
+        jLabel3 = new javax.swing.JLabel();
+        txtSubtotal = new javax.swing.JTextField();
+        checkboxVAT = new javax.swing.JCheckBox();
+        jLabel4 = new javax.swing.JLabel();
+        txtTotal = new javax.swing.JTextField();
+        txtApplyVat = new javax.swing.JTextField();
+        cmbPayment = new javax.swing.JComboBox<>();
+        jLabel6 = new javax.swing.JLabel();
+        jLabel12 = new javax.swing.JLabel();
+        jLabel13 = new javax.swing.JLabel();
+        txtChange = new javax.swing.JTextField();
+        txtCashTendered = new javax.swing.JTextField();
+        jLabel14 = new javax.swing.JLabel();
+        jPanel5 = new javax.swing.JPanel();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        txtReceipt = new javax.swing.JTextArea();
+        jLabel10 = new javax.swing.JLabel();
+        jButton1 = new javax.swing.JButton();
+        jButton2 = new javax.swing.JButton();
+
         setPreferredSize(new java.awt.Dimension(1250, 750));
         setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+
+        jPanel1.setBackground(new java.awt.Color(255, 255, 255));
+        jPanel1.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
+        jPanel1.addAncestorListener(new javax.swing.event.AncestorListener() {
+            public void ancestorAdded(javax.swing.event.AncestorEvent evt) {
+                jPanel1AncestorAdded(evt);
+            }
+            public void ancestorMoved(javax.swing.event.AncestorEvent evt) {
+            }
+            public void ancestorRemoved(javax.swing.event.AncestorEvent evt) {
+            }
+        });
+        jPanel1.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+
+        jLabel1.setText("User:");
+        jPanel1.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(310, 10, -1, -1));
+
+        jLabel2.setText("Date/Time:");
+        jPanel1.add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 10, -1, -1));
+
+        lblDateTime.setText("{}");
+        jPanel1.add(lblDateTime, new org.netbeans.lib.awtextra.AbsoluteConstraints(80, 10, -1, -1));
+
+        lblUserType.setText("{}");
+        jPanel1.add(lblUserType, new org.netbeans.lib.awtextra.AbsoluteConstraints(350, 10, -1, -1));
+
+        jLabel5.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        jLabel5.setText("Invoice:");
+        jPanel1.add(jLabel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(560, 10, -1, -1));
+
+        lblInvoice.setText("{}");
+        jPanel1.add(lblInvoice, new org.netbeans.lib.awtextra.AbsoluteConstraints(620, 10, -1, -1));
+
+        add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 20, 1530, 40));
+
+        jPanel2.setBackground(new java.awt.Color(255, 255, 255));
+        jPanel2.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
+        jPanel2.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+
+        jLabel8.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
+        jLabel8.setText("Barcode:");
+        jPanel2.add(jLabel8, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 20, -1, -1));
+        jPanel2.add(txtBarcode, new org.netbeans.lib.awtextra.AbsoluteConstraints(90, 10, 1000, 40));
+
+        jLabel9.setFont(new java.awt.Font("Segoe UI", 2, 12)); // NOI18N
+        jLabel9.setForeground(new java.awt.Color(204, 204, 204));
+        jLabel9.setText("Scanner-ready: scan/type then press Enter");
+        jPanel2.add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(1100, 20, -1, -1));
+
+        btnAdd.setBackground(new java.awt.Color(109, 213, 180));
+        btnAdd.setText("Add");
+        btnAdd.addActionListener(this::btnAddActionPerformed);
+        jPanel2.add(btnAdd, new org.netbeans.lib.awtextra.AbsoluteConstraints(1330, 20, -1, -1));
+
+        btnFocusBarcode.setBackground(new java.awt.Color(109, 213, 180));
+        btnFocusBarcode.setText("Focus Barcode");
+        btnFocusBarcode.addActionListener(this::btnFocusBarcodeActionPerformed);
+        jPanel2.add(btnFocusBarcode, new org.netbeans.lib.awtextra.AbsoluteConstraints(1410, 20, -1, -1));
+
+        add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 90, 1530, 60));
+
+        jLabel7.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel7.setText("Product Scan");
+        add(jLabel7, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 70, -1, -1));
+
+        jPanel3.setBackground(new java.awt.Color(255, 255, 255));
+        jPanel3.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
+        jPanel3.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+
+        tblCartItems.setModel(new javax.swing.table.DefaultTableModel(
+            new Object [][] {
+                {null, null, null, null, null},
+                {null, null, null, null, null},
+                {null, null, null, null, null},
+                {null, null, null, null, null}
+            },
+            new String [] {
+                "Product", "Quantity", "Price", "Dsicount", "Subtotal"
+            }
+        ) {
+            boolean[] canEdit = new boolean [] {
+                false, false, false, false, false
+            };
+
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit [columnIndex];
+            }
+        });
+        jScrollPane2.setViewportView(tblCartItems);
+
+        jPanel3.add(jScrollPane2, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 20, 960, 450));
+
+        jLabel11.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel11.setText("Cart Items");
+        jPanel3.add(jLabel11, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 0, -1, -1));
+
+        add(jPanel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 160, 980, 480));
+
+        jPanel4.setBackground(new java.awt.Color(255, 255, 255));
+        jPanel4.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
+        jPanel4.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+
+        btnCheckOut.setBackground(new java.awt.Color(109, 213, 180));
+        btnCheckOut.setText("Checkout");
+        btnCheckOut.addActionListener(this::btnCheckOutActionPerformed);
+        jPanel4.add(btnCheckOut, new org.netbeans.lib.awtextra.AbsoluteConstraints(20, 260, 220, -1));
+
+        btnPrintReceipt.setBackground(new java.awt.Color(109, 213, 180));
+        btnPrintReceipt.setText("Print Receipt");
+        btnPrintReceipt.addActionListener(this::btnPrintReceiptActionPerformed);
+        jPanel4.add(btnPrintReceipt, new org.netbeans.lib.awtextra.AbsoluteConstraints(280, 260, 230, -1));
+
+        jLabel3.setText("Subtotal:");
+        jPanel4.add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 30, -1, -1));
+
+        txtSubtotal.setEditable(false);
+        jPanel4.add(txtSubtotal, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 22, 390, 30));
+
+        checkboxVAT.setText(" Apply VAT (12%)");
+        checkboxVAT.addActionListener(this::checkboxVATActionPerformed);
+        jPanel4.add(checkboxVAT, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 70, -1, -1));
+
+        jLabel4.setText("Change:");
+        jPanel4.add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 230, -1, -1));
+
+        txtTotal.setEditable(false);
+        jPanel4.add(txtTotal, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 100, 390, 30));
+
+        txtApplyVat.setEditable(false);
+        jPanel4.add(txtApplyVat, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 60, 390, 30));
+
+        cmbPayment.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "CASH", "CARD", "GCASH" }));
+        jPanel4.add(cmbPayment, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 140, 390, 30));
+
+        jLabel6.setText("Total:");
+        jPanel4.add(jLabel6, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 110, -1, -1));
+
+        jLabel12.setText("Payment:");
+        jPanel4.add(jLabel12, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 150, -1, -1));
+
+        jLabel13.setText("Cash Tendered:");
+        jPanel4.add(jLabel13, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 190, -1, -1));
+
+        txtChange.setEditable(false);
+        jPanel4.add(txtChange, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 220, 390, 30));
+        jPanel4.add(txtCashTendered, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 180, 390, 30));
+
+        jLabel14.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel14.setText("Computation and Payment");
+        jPanel4.add(jLabel14, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 0, -1, -1));
+
+        add(jPanel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(1020, 160, 530, 300));
+
+        jPanel5.setBackground(new java.awt.Color(255, 255, 255));
+        jPanel5.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
+        jPanel5.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+
+        jScrollPane1.setBackground(new java.awt.Color(255, 255, 255));
+        jScrollPane1.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
+
+        txtReceipt.setColumns(20);
+        txtReceipt.setRows(5);
+        jScrollPane1.setViewportView(txtReceipt);
+
+        jPanel5.add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 20, 510, 140));
+
+        jLabel10.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel10.setText("Receipt");
+        jPanel5.add(jLabel10, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 0, -1, -1));
+
+        add(jPanel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(1020, 470, 530, 170));
+
+        jButton1.setBackground(new java.awt.Color(109, 213, 180));
+        jButton1.setText("Clear Cart");
+        add(jButton1, new org.netbeans.lib.awtextra.AbsoluteConstraints(220, 650, -1, -1));
+
+        jButton2.setBackground(new java.awt.Color(109, 213, 180));
+        jButton2.setText("Remove Selected Product");
+        add(jButton2, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 650, -1, -1));
     }// </editor-fold>//GEN-END:initComponents
-}
+
+    private void jPanel1AncestorAdded(javax.swing.event.AncestorEvent evt) {//GEN-FIRST:event_jPanel1AncestorAdded
+        // TODO add your handling code here:
+    }//GEN-LAST:event_jPanel1AncestorAdded
+
+    private void checkboxVATActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_checkboxVATActionPerformed
+    recalcTotals(); // recompute VAT + totals
+    }//GEN-LAST:event_checkboxVATActionPerformed
+
+    private void btnCheckOutActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCheckOutActionPerformed
+     checkout(); // insert to sales + sale_items + deduct stock + inventory_transactions
+    }//GEN-LAST:event_btnCheckOutActionPerformed
+
+    private void btnPrintReceiptActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPrintReceiptActionPerformed
+     try {
+        txtReceipt.print();
+    } catch (java.awt.print.PrinterException ex) {
+        JOptionPane.showMessageDialog(this, "Print error: " + ex.getMessage());
+    }
+    }//GEN-LAST:event_btnPrintReceiptActionPerformed
+
+    private void btnAddActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnAddActionPerformed
+     addByBarcode(); // add product using txtBarcode
+    }//GEN-LAST:event_btnAddActionPerformed
+
+    private void btnFocusBarcodeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnFocusBarcodeActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_btnFocusBarcodeActionPerformed
+
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btnAdd;
+    private javax.swing.JButton btnCheckOut;
+    private javax.swing.JButton btnFocusBarcode;
+    private javax.swing.JButton btnPrintReceipt;
+    private javax.swing.JCheckBox checkboxVAT;
+    private javax.swing.JComboBox<String> cmbPayment;
+    private javax.swing.JButton jButton1;
+    private javax.swing.JButton jButton2;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel10;
+    private javax.swing.JLabel jLabel11;
+    private javax.swing.JLabel jLabel12;
+    private javax.swing.JLabel jLabel13;
+    private javax.swing.JLabel jLabel14;
+    private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JLabel jLabel5;
+    private javax.swing.JLabel jLabel6;
+    private javax.swing.JLabel jLabel7;
+    private javax.swing.JLabel jLabel8;
+    private javax.swing.JLabel jLabel9;
+    private javax.swing.JPanel jPanel1;
+    private javax.swing.JPanel jPanel2;
+    private javax.swing.JPanel jPanel3;
+    private javax.swing.JPanel jPanel4;
+    private javax.swing.JPanel jPanel5;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JScrollPane jScrollPane2;
+    private javax.swing.JLabel lblDateTime;
+    private javax.swing.JLabel lblInvoice;
+    private javax.swing.JLabel lblUserType;
+    private javax.swing.JTable tblCartItems;
+    private javax.swing.JTextField txtApplyVat;
+    private javax.swing.JTextField txtBarcode;
+    private javax.swing.JTextField txtCashTendered;
+    private javax.swing.JTextField txtChange;
+    private javax.swing.JTextArea txtReceipt;
+    private javax.swing.JTextField txtSubtotal;
+    private javax.swing.JTextField txtTotal;
     // End of variables declaration//GEN-END:variables
+}

@@ -2,6 +2,7 @@ package sulibagakent.Screens;
 
 import DbConnection.ActivityDAO;
 import DbConnection.ProductDAO;
+import java.awt.Image;
 
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JFileChooser;
@@ -13,6 +14,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.swing.ImageIcon;
 
 public class ProductScreen extends javax.swing.JFrame {
 
@@ -22,6 +24,7 @@ public class ProductScreen extends javax.swing.JFrame {
     private Integer editingProductId = null;
 
     // ✅ store name -> id mapping for combos
+    private javax.swing.JLabel imageLabel;
     private final Map<String, Integer> categoryMap = new HashMap<>();
     private final Map<String, Integer> supplierMap = new HashMap<>();
 
@@ -37,6 +40,7 @@ public class ProductScreen extends javax.swing.JFrame {
 
         btnUpdate.setEnabled(false);
         btnAddProduct.setEnabled(true);
+         autoGenerateBarcodeIfNew();
     }
 
     // ✅ EDIT MODE constructor (use product_id instead of productID string)
@@ -73,7 +77,36 @@ public class ProductScreen extends javax.swing.JFrame {
         btnAddProduct.setEnabled(false);
         btnUpdate.setEnabled(true);
     }
+private void showImagePreview(File file) {
+    try {
+        ImageIcon icon = new ImageIcon(file.getAbsolutePath());
 
+        int w = imagePanel.getWidth();
+        int h = imagePanel.getHeight();
+
+        // if panel not yet laid out, fallback size
+        if (w <= 0) w = 240;
+        if (h <= 0) h = 110;
+
+        Image img = icon.getImage().getScaledInstance(w, h, Image.SCALE_SMOOTH);
+        ImageIcon scaled = new ImageIcon(img);
+
+        if (imageLabel == null) {
+            imageLabel = new javax.swing.JLabel();
+            imageLabel.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+            imageLabel.setVerticalAlignment(javax.swing.SwingConstants.CENTER);
+            imagePanel.setLayout(new java.awt.BorderLayout());
+            imagePanel.add(imageLabel, java.awt.BorderLayout.CENTER);
+        }
+
+        imageLabel.setIcon(scaled);
+        imagePanel.revalidate();
+        imagePanel.repaint();
+
+    } catch (Exception e) {
+        JOptionPane.showMessageDialog(this, "Preview failed: " + e.getMessage());
+    }
+}
     // =========================
     // LOAD CATEGORIES INTO COMBO
     // =========================
@@ -113,6 +146,40 @@ public class ProductScreen extends javax.swing.JFrame {
         }
         cmbCategory.setSelectedIndex(0);
     }
+    // =========================
+// AUTO BARCODE GENERATOR
+// =========================
+private void autoGenerateBarcodeIfNew() {
+    // Only generate when ADD mode (not editing)
+    if (editingProductId != null) return;
+
+    // If already has value, do not overwrite
+    String current = txtBarcode.getText().trim();
+    if (!current.isEmpty()) return;
+
+    txtBarcode.setText(generateUniqueBarcode());
+}
+
+private String generateUniqueBarcode() {
+    // Pattern: BRD-YYYYMMDD-HHMMSS-XXXX (XXXX = 4 random digits)
+    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss");
+    String base = "BRD-" + sdf.format(new java.util.Date());
+
+    // Keep trying until unique
+    while (true) {
+        int rnd = 1000 + (int)(Math.random() * 9000);
+        String barcode = base + "-" + rnd;
+
+        try {
+            if (!ProductDAO.barcodeExists(barcode)) {   // ✅ you will add this method in ProductDAO
+                return barcode;
+            }
+        } catch (Exception e) {
+            // If DB check fails, still return generated barcode (fallback)
+            return barcode;
+        }
+    }
+}
 
     // =========================
     // LOAD SUPPLIERS INTO COMBO
@@ -178,7 +245,7 @@ public class ProductScreen extends javax.swing.JFrame {
                 File file = chooser.getSelectedFile();
                 byte[] bytes = Files.readAllBytes(file.toPath());
                 productImageBase64 = Base64.getEncoder().encodeToString(bytes);
-
+                showImagePreview(file);
                 JOptionPane.showMessageDialog(this, "Image uploaded successfully!");
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(this, "Image upload failed: " + e.getMessage());
@@ -200,8 +267,12 @@ public class ProductScreen extends javax.swing.JFrame {
 
         if (cmbCategory.getItemCount() > 0) cmbCategory.setSelectedIndex(0);
         if (cmbSupplierName.getItemCount() > 0) cmbSupplierName.setSelectedIndex(0);
-
+        if (imageLabel != null) {
+    imageLabel.setIcon(null);
+}
+imagePanel.repaint();
         productImageBase64 = null; // reset image
+        autoGenerateBarcodeIfNew(); 
     }
 
     // =========================
@@ -359,9 +430,11 @@ public class ProductScreen extends javax.swing.JFrame {
         cmbSupplierName = new javax.swing.JComboBox<>();
         btnUploadImage = new javax.swing.JButton();
         jLabel1 = new javax.swing.JLabel();
+        imagePanel = new javax.swing.JPanel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
-        setPreferredSize(new java.awt.Dimension(740, 430));
+        setMinimumSize(new java.awt.Dimension(790, 450));
+        setPreferredSize(new java.awt.Dimension(740, 500));
         addWindowStateListener(new java.awt.event.WindowStateListener() {
             public void windowStateChanged(java.awt.event.WindowEvent evt) {
                 formWindowStateChanged(evt);
@@ -406,13 +479,15 @@ public class ProductScreen extends javax.swing.JFrame {
         txtDescription.setRows(5);
         jScrollPane2.setViewportView(txtDescription);
 
-        jPanel2.add(jScrollPane2, new org.netbeans.lib.awtextra.AbsoluteConstraints(430, 60, 240, -1));
+        jPanel2.add(jScrollPane2, new org.netbeans.lib.awtextra.AbsoluteConstraints(470, 60, 240, -1));
 
         jLabel3.setText("Description:");
-        jPanel2.add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 70, -1, -1));
+        jPanel2.add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 70, -1, -1));
 
         jLabel18.setText("Barcode:");
         jPanel2.add(jLabel18, new org.netbeans.lib.awtextra.AbsoluteConstraints(40, 70, -1, -1));
+
+        txtBarcode.setEditable(false);
         jPanel2.add(txtBarcode, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 62, 180, 30));
 
         jLabel6.setText("Cost Price:");
@@ -424,15 +499,15 @@ public class ProductScreen extends javax.swing.JFrame {
         jPanel2.add(txtSellingPrice, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 210, 180, 32));
 
         jLabel10.setText("Quantity in Stock:");
-        jPanel2.add(jLabel10, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 170, -1, -1));
-        jPanel2.add(txtQuantity, new org.netbeans.lib.awtextra.AbsoluteConstraints(430, 160, 240, 32));
+        jPanel2.add(jLabel10, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 170, -1, -1));
+        jPanel2.add(txtQuantity, new org.netbeans.lib.awtextra.AbsoluteConstraints(470, 160, 240, 32));
 
         jLabel11.setText("Reoder Level:");
         jPanel2.add(jLabel11, new org.netbeans.lib.awtextra.AbsoluteConstraints(40, 270, -1, -1));
         jPanel2.add(txtReorderLevel, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 260, 180, 32));
 
         jLabel12.setText("Supplier Name:");
-        jPanel2.add(jLabel12, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 220, -1, -1));
+        jPanel2.add(jLabel12, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 220, -1, -1));
 
         btnAddProduct.setText("Add Product");
         btnAddProduct.addActionListener(new java.awt.event.ActionListener() {
@@ -440,7 +515,7 @@ public class ProductScreen extends javax.swing.JFrame {
                 btnAddProductActionPerformed(evt);
             }
         });
-        jPanel2.add(btnAddProduct, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 360, -1, -1));
+        jPanel2.add(btnAddProduct, new org.netbeans.lib.awtextra.AbsoluteConstraints(150, 430, -1, -1));
 
         btnUpdate.setText("Update");
         btnUpdate.addActionListener(new java.awt.event.ActionListener() {
@@ -448,7 +523,7 @@ public class ProductScreen extends javax.swing.JFrame {
                 btnUpdateActionPerformed(evt);
             }
         });
-        jPanel2.add(btnUpdate, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 360, -1, -1));
+        jPanel2.add(btnUpdate, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 430, -1, -1));
 
         btnClear.setText("Clear");
         btnClear.addActionListener(new java.awt.event.ActionListener() {
@@ -456,7 +531,7 @@ public class ProductScreen extends javax.swing.JFrame {
                 btnClearActionPerformed(evt);
             }
         });
-        jPanel2.add(btnClear, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 360, -1, -1));
+        jPanel2.add(btnClear, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 430, -1, -1));
 
         btnBack.setText("Exit");
         btnBack.addActionListener(new java.awt.event.ActionListener() {
@@ -464,10 +539,10 @@ public class ProductScreen extends javax.swing.JFrame {
                 btnBackActionPerformed(evt);
             }
         });
-        jPanel2.add(btnBack, new org.netbeans.lib.awtextra.AbsoluteConstraints(550, 360, -1, -1));
+        jPanel2.add(btnBack, new org.netbeans.lib.awtextra.AbsoluteConstraints(540, 430, -1, -1));
 
         cmbSupplierName.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
-        jPanel2.add(cmbSupplierName, new org.netbeans.lib.awtextra.AbsoluteConstraints(430, 210, 240, 30));
+        jPanel2.add(cmbSupplierName, new org.netbeans.lib.awtextra.AbsoluteConstraints(470, 210, 240, 30));
 
         btnUploadImage.setText("Upload Image");
         btnUploadImage.addActionListener(new java.awt.event.ActionListener() {
@@ -475,12 +550,15 @@ public class ProductScreen extends javax.swing.JFrame {
                 btnUploadImageActionPerformed(evt);
             }
         });
-        jPanel2.add(btnUploadImage, new org.netbeans.lib.awtextra.AbsoluteConstraints(430, 260, 240, 30));
+        jPanel2.add(btnUploadImage, new org.netbeans.lib.awtextra.AbsoluteConstraints(470, 260, 240, 30));
 
         jLabel1.setText("Product Image:");
-        jPanel2.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(320, 270, -1, -1));
+        jPanel2.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 270, -1, -1));
 
-        getContentPane().add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 730, 400));
+        imagePanel.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+        jPanel2.add(imagePanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(470, 310, 240, 110));
+
+        getContentPane().add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 770, 490));
 
         pack();
         setLocationRelativeTo(null);
@@ -525,7 +603,8 @@ public class ProductScreen extends javax.swing.JFrame {
     }//GEN-LAST:event_formWindowStateChanged
 
     private void formWindowActivated(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowActivated
-    loadCategories();
+        loadCategories();
+    autoGenerateBarcodeIfNew();
     }//GEN-LAST:event_formWindowActivated
 
     private void btnUploadImageActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnUploadImageActionPerformed
@@ -544,6 +623,7 @@ public class ProductScreen extends javax.swing.JFrame {
     private javax.swing.JButton btnUploadImage;
     private javax.swing.JComboBox<String> cmbCategory;
     private javax.swing.JComboBox<String> cmbSupplierName;
+    private javax.swing.JPanel imagePanel;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel11;

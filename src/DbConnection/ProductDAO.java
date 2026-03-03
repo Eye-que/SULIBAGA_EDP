@@ -213,4 +213,17 @@ public class ProductDAO {
         }
         return list;
     }
+    public static boolean barcodeExists(String barcode) throws SQLException {
+    String sql = "SELECT 1 FROM products WHERE barcode = ? LIMIT 1";
+
+    try (Connection con = DBConnection.getConnection();
+         PreparedStatement ps = con.prepareStatement(sql)) {
+
+        ps.setString(1, barcode);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            return rs.next();
+        }
+    }
+}
 }

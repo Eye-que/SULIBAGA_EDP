@@ -1,5 +1,6 @@
 package sulibagakent.Screens;
 
+import sulibagakent.Screens.Gradients.Gradient;
 import DbConnection.StockDAO;
 
 import javax.swing.*;
@@ -80,7 +81,7 @@ public class InventoryManagement extends Gradient {
                 // columns: Barcode(0), Product Name(1), Category(2), Supplier(3), Stock Qty(4), Reorder(5), Status(6)
                 String barcode = entry.getStringValue(0).toLowerCase();
                 String name = entry.getStringValue(1).toLowerCase();
-                String cat = entry.getStringValue(2);
+                String cat = String.valueOf(entry.getStringValue(2));
 
                 boolean matchesSearch = search.isEmpty()
                         || barcode.contains(search)
@@ -152,10 +153,10 @@ public class InventoryManagement extends Gradient {
             });
         }
 
-        // Update cards (labels)
-        jLabel13.setText("Total Stock Units: " + totalUnits);
-        jLabel14.setText("Low Stock Items: " + lowStockCount);
-        jLabel15.setText("Out of Stock Items: " + outOfStockCount);
+lblTotalStocks.setText(String.valueOf(totalUnits));
+lblLowStocks.setText(String.valueOf(lowStockCount));
+lblOutOfStock.setText(String.valueOf(outOfStockCount));
+lblExpiringSoon.setText("0");
 
         // Expiring soon not in requirement -> show 0 (or remove panel)
         jLabel16.setText("Expiring Soon: 0");
@@ -241,7 +242,7 @@ public class InventoryManagement extends Gradient {
     private void initComponents() {
 
         btnRefresh = new javax.swing.JLabel();
-        btnStock = new javax.swing.JButton();
+        btnStockOut = new javax.swing.JButton();
         jLabel1 = new javax.swing.JLabel();
         jTabbedPane1 = new javax.swing.JTabbedPane();
         jScrollPane2 = new javax.swing.JScrollPane();
@@ -256,7 +257,6 @@ public class InventoryManagement extends Gradient {
         jComboBox1 = new javax.swing.JComboBox<>();
         jLabel3 = new javax.swing.JLabel();
         btnUpdate = new javax.swing.JButton();
-        btnDelete = new javax.swing.JButton();
         jLabel5 = new javax.swing.JLabel();
         jPanel1 = new javax.swing.JPanel();
         jLabel9 = new javax.swing.JLabel();
@@ -274,6 +274,7 @@ public class InventoryManagement extends Gradient {
         jLabel12 = new javax.swing.JLabel();
         jLabel16 = new javax.swing.JLabel();
         lblExpiringSoon = new javax.swing.JLabel();
+        btnStockIn = new javax.swing.JButton();
 
         setPreferredSize(new java.awt.Dimension(1250, 850));
         setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
@@ -287,10 +288,10 @@ public class InventoryManagement extends Gradient {
         });
         add(btnRefresh, new org.netbeans.lib.awtextra.AbsoluteConstraints(1120, 170, -1, -1));
 
-        btnStock.setBackground(new java.awt.Color(109, 213, 180));
-        btnStock.setText("Add Stock");
-        btnStock.addActionListener(this::btnStockActionPerformed);
-        add(btnStock, new org.netbeans.lib.awtextra.AbsoluteConstraints(690, 160, 120, 30));
+        btnStockOut.setBackground(new java.awt.Color(109, 213, 180));
+        btnStockOut.setText("Stock Out");
+        btnStockOut.addActionListener(this::btnStockOutActionPerformed);
+        add(btnStockOut, new org.netbeans.lib.awtextra.AbsoluteConstraints(690, 160, 120, 30));
 
         jLabel1.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/turn-back.png"))); // NOI18N
         jLabel1.setText("Back to Dashboard");
@@ -336,7 +337,15 @@ public class InventoryManagement extends Gradient {
             new String [] {
                 "Date", "Product", "Transaction Type", "Quantity", "Reference No.", "Remarks"
             }
-        ));
+        ) {
+            boolean[] canEdit = new boolean [] {
+                false, false, false, false, false, false
+            };
+
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit [columnIndex];
+            }
+        });
         jScrollPane1.setViewportView(jTable1);
 
         jTabbedPane1.addTab("Stock Transaction", jScrollPane1);
@@ -368,15 +377,11 @@ public class InventoryManagement extends Gradient {
         btnUpdate.addActionListener(this::btnUpdateActionPerformed);
         add(btnUpdate, new org.netbeans.lib.awtextra.AbsoluteConstraints(810, 160, 120, 30));
 
-        btnDelete.setBackground(new java.awt.Color(109, 213, 180));
-        btnDelete.setText("Delete");
-        add(btnDelete, new org.netbeans.lib.awtextra.AbsoluteConstraints(930, 160, 120, 30));
-
         jLabel5.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/download (2).png"))); // NOI18N
         add(jLabel5, new org.netbeans.lib.awtextra.AbsoluteConstraints(1070, 160, -1, -1));
 
         jPanel1.setBackground(new java.awt.Color(255, 255, 255));
-        jPanel1.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
+        jPanel1.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
         jPanel1.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         jLabel9.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/package.png"))); // NOI18N
@@ -392,7 +397,7 @@ public class InventoryManagement extends Gradient {
         add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(50, 80, 200, 70));
 
         jPanel2.setBackground(new java.awt.Color(255, 255, 255));
-        jPanel2.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
+        jPanel2.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
         jPanel2.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         jLabel10.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/alarm.png"))); // NOI18N
@@ -408,7 +413,7 @@ public class InventoryManagement extends Gradient {
         add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 80, 200, 70));
 
         jPanel3.setBackground(new java.awt.Color(255, 255, 255));
-        jPanel3.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
+        jPanel3.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
         jPanel3.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         jLabel11.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/close.png"))); // NOI18N
@@ -424,7 +429,7 @@ public class InventoryManagement extends Gradient {
         add(jPanel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(730, 80, 220, 70));
 
         jPanel4.setBackground(new java.awt.Color(255, 255, 255));
-        jPanel4.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
+        jPanel4.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(204, 204, 204)));
         jPanel4.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         jLabel12.setIcon(new javax.swing.ImageIcon(getClass().getResource("/sulibagakent/Icons/clock.png"))); // NOI18N
@@ -438,16 +443,21 @@ public class InventoryManagement extends Gradient {
         jPanel4.add(lblExpiringSoon, new org.netbeans.lib.awtextra.AbsoluteConstraints(110, 40, -1, -1));
 
         add(jPanel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(490, 80, 220, 70));
+
+        btnStockIn.setBackground(new java.awt.Color(109, 213, 180));
+        btnStockIn.setText("Stock In");
+        btnStockIn.addActionListener(this::btnStockInActionPerformed);
+        add(btnStockIn, new org.netbeans.lib.awtextra.AbsoluteConstraints(570, 160, 120, 30));
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnRefreshMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btnRefreshMouseClicked
         refreshTables();
     }//GEN-LAST:event_btnRefreshMouseClicked
 
-    private void btnStockActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnStockActionPerformed
-    ProductStockingFrame psf = new ProductStockingFrame(this);
+    private void btnStockOutActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnStockOutActionPerformed
+    StockOutFrame psf = new StockOutFrame(this);
     psf.setVisible(true);
-    }//GEN-LAST:event_btnStockActionPerformed
+    }//GEN-LAST:event_btnStockOutActionPerformed
 
     private void jLabel1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jLabel1MouseClicked
     if (dashboard != null) {
@@ -461,11 +471,16 @@ public class InventoryManagement extends Gradient {
                 "Use Stock In / Stock Out to adjust properly.");
     }//GEN-LAST:event_btnUpdateActionPerformed
 
+    private void btnStockInActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnStockInActionPerformed
+     StockInFrame psf = new StockInFrame(this);
+     psf.setVisible(true);
+    }//GEN-LAST:event_btnStockInActionPerformed
+
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JButton btnDelete;
     private javax.swing.JLabel btnRefresh;
-    private javax.swing.JButton btnStock;
+    private javax.swing.JButton btnStockIn;
+    private javax.swing.JButton btnStockOut;
     private javax.swing.JButton btnUpdate;
     private javax.swing.JComboBox<String> jComboBox1;
     private javax.swing.JLabel jLabel1;

@@ -270,7 +270,7 @@ private void setActive(JLabel clickedLabel) {
             }
         });
         getContentPane().add(btnUsers, new org.netbeans.lib.awtextra.AbsoluteConstraints(800, 100, -1, -1));
-        getContentPane().add(pnlContent, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 180, 1600, 740));
+        getContentPane().add(pnlContent, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 180, 1600, 700));
 
         jLabel10.setFont(new java.awt.Font("Yu Gothic UI Semibold", 1, 16)); // NOI18N
         jLabel10.setText("USERS");
